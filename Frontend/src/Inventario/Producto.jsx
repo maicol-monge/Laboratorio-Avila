@@ -79,9 +79,15 @@ export default function DetalleProducto() {
         <div className="flex-grow-1" style={{ marginLeft: "250px", padding: "20px" }}>
           <div className="container-fluid">
             <div className="d-flex justify-content-between align-items-center mb-4">
-              <h1 className="h3 mb-0">{insumo ? insumo.nombre_insumo : 'Detalle del Producto'}</h1>
               <div>
-                <button className="btn btn-secondary me-2" onClick={() => navigate(-1)}>Volver</button>
+                <h1 className="h3 mb-0">{insumo ? insumo.nombre_insumo : 'Detalle del Producto'}</h1>
+                <div className="d-flex">
+                <p>Gestión detallada del productoㅤ</p>
+                <p>{insumo ? insumo.id_insumo : 'Detalle del Producto'}</p>
+                </div>
+              </div>
+              <div>
+                <button className="btn btn-info me-2" onClick={() => navigate(-1)}>Volver</button>
               </div>
             </div>
 
@@ -96,19 +102,19 @@ export default function DetalleProducto() {
                       <h5 className="card-title mb-0">{insumo.nombre_insumo}</h5>
                     </div>
                     <div className="card-body">
-                      <div className="mb-3">
-                        <label className="form-label fw-bold">ID:</label>
+                      <div className="card mb-3 p-2">
+                        <label className="form-label fw-bold mb-1">ID:</label>
                         <p className="mb-0">{insumo.id_insumo}</p>
                       </div>
-                      <div className="mb-3">
+                      <div className="card mb-3 p-2">
                         <label className="form-label fw-bold">Stock Actual</label>
                         <p className="mb-0">{insumo.stock}</p>
                       </div>
-                      <div className="mb-3">
+                      <div className="card mb-3 p-2">
                         <label className="form-label fw-bold">Fecha de Vencimiento</label>
                         <p className="mb-0">{insumo.fecha_vencimiento ? insumo.fecha_vencimiento.split('T')[0] : '-'}</p>
                       </div>
-                      <div className="mb-3">
+                      <div className="card mb-3 p-2">
                         <label className="form-label fw-bold">Descripción</label>
                         <p className="mb-0">{insumo.descripcion}</p>
                       </div>
@@ -116,33 +122,84 @@ export default function DetalleProducto() {
                   </div>
 
                   <div className="card">
-                    <div className="card-header bg-white">
-                      <h5 className="card-title mb-0">Acciones de Stock</h5>
-                    </div>
                     <div className="card-body">
+                      <h5 className="card-title">Acciones de Stock</h5>
                       <form onSubmit={submitMovimiento}>
-                        <div className="row mb-3">
-                          <div className="col-md-6">
-                            <label className="form-label fw-bold">Tipo</label>
-                            <select name="tipo_movimiento" className="form-select" value={movForm.tipo_movimiento} onChange={handleMovChange}>
-                              <option value="E">Entrada</option>
-                              <option value="S">Salida</option>
-                            </select>
+                        <div className="mb-3">
+                          <div className="form-check form-check-inline">
+                            <input
+                              className="form-check-input"
+                              type="radio"
+                              name="tipo_movimiento"
+                              id="entrada"
+                              value="E"
+                              checked={movForm.tipo_movimiento === 'E'}
+                              onChange={handleMovChange}
+                              disabled={loading}
+                            />
+                            <label className="form-check-label" htmlFor="entrada">
+                              Entrada
+                            </label>
                           </div>
-                          <div className="col-md-6">
-                            <label className="form-label fw-bold">Observación</label>
-                            <input name="observacion" value={movForm.observacion} onChange={handleMovChange} className="form-control" />
+                          <div className="form-check form-check-inline">
+                            <input
+                              className="form-check-input"
+                              type="radio"
+                              name="tipo_movimiento"
+                              id="salida"
+                              value="S"
+                              checked={movForm.tipo_movimiento === 'S'}
+                              onChange={handleMovChange}
+                              disabled={loading}
+                            />
+                            <label className="form-check-label" htmlFor="salida">
+                              Salida
+                            </label>
                           </div>
                         </div>
-                        <div className="row mb-3">
-                          <div className="col-md-6">
-                            <label className="form-label fw-bold">Cantidad</label>
-                            <input name="cantidad" value={movForm.cantidad} onChange={handleMovChange} type="number" className="form-control" />
-                          </div>
+
+                        <div className="mb-3">
+                          <label className="form-label">Cantidad</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            name="cantidad"
+                            min="1"
+                            value={movForm.cantidad}
+                            onChange={handleMovChange}
+                            disabled={loading}
+                            required
+                          />
+                          {movForm.tipo_movimiento === 'S' && insumo && Number(movForm.cantidad) > Number(insumo.stock) && (
+                            <div className="form-text text-danger">La salida no puede superar el stock actual ({insumo.stock}).</div>
+                          )}
                         </div>
-                        <div className="d-grid gap-2">
-                          <button className="btn btn-primary" type="submit">Registrar Movimiento</button>
+
+                        <div className="mb-3">
+                          <label className="form-label">Motivo</label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            name="observacion"
+                            placeholder="Ingrese el motivo"
+                            value={movForm.observacion}
+                            onChange={handleMovChange}
+                            disabled={loading}
+                          />
                         </div>
+
+                        <button
+                          type="submit"
+                          className="btn btn-info"
+                          disabled={
+                            loading ||
+                            !movForm.cantidad ||
+                            Number(movForm.cantidad) <= 0 ||
+                            (movForm.tipo_movimiento === 'S' && insumo && Number(movForm.cantidad) > Number(insumo.stock))
+                          }
+                        >
+                          {loading ? 'Guardando...' : 'Guardar'}
+                        </button>
                       </form>
                     </div>
                   </div>
