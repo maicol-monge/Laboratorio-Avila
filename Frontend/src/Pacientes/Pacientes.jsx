@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-
+import Swal from "sweetalert2";
 
 /**
  * Pacientes.jsx
@@ -13,7 +13,6 @@ export default function Pacientes() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
-
 
   // búsqueda
   const [query, setQuery] = useState("");
@@ -31,7 +30,7 @@ export default function Pacientes() {
     edad: "",
     sexo: "",
     dui: "",
-    telefono: ""
+    telefono: "",
   });
 
   // token y headers
@@ -59,12 +58,12 @@ export default function Pacientes() {
   };
 
   const sexoLabel = (s) => {
-    if (!s) return '-';
+    if (!s) return "-";
     const v = String(s).toUpperCase();
-    if (v === 'M') return 'Masculino';
-    if (v === 'F') return 'Femenino';
-    if (v === 'O') return 'Otro';
-    if (v === 'U') return 'No especificado';
+    if (v === "M") return "Masculino";
+    if (v === "F") return "Femenino";
+    if (v === "O") return "Otro";
+    if (v === "U") return "No especificado";
     return s;
   };
 
@@ -73,17 +72,23 @@ export default function Pacientes() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("http://localhost:5000/api/pacientes/", { headers });
+      const res = await fetch("http://localhost:5000/api/pacientes/", {
+        headers,
+      });
       if (!res.ok) {
         let text;
-        try { text = await res.text(); } catch (e) { text = null; }
+        try {
+          text = await res.text();
+        } catch (e) {
+          text = null;
+        }
         throw new Error(text || "Error al cargar pacientes");
       }
       const data = await res.json();
       // normalizar sexo a mayúscula para uso consistente en UI
       const normalized = (Array.isArray(data) ? data : []).map((p) => ({
         ...p,
-        sexo: p && p.sexo ? String(p.sexo).toUpperCase() : 'U'
+        sexo: p && p.sexo ? String(p.sexo).toUpperCase() : "U",
       }));
       setPacientes(normalized);
     } catch (err) {
@@ -107,7 +112,7 @@ export default function Pacientes() {
       edad: "",
       sexo: "",
       dui: "",
-      telefono: ""
+      telefono: "",
     });
     setEditingId(null);
   };
@@ -123,21 +128,31 @@ export default function Pacientes() {
     }
     // telefono ####-####
     if (name === "telefono") {
-      const formatted = value.replace(/\D/g, "").slice(0, 8).replace(/(\d{4})(\d{0,4})/, "$1-$2");
+      const formatted = value
+        .replace(/\D/g, "")
+        .slice(0, 8)
+        .replace(/(\d{4})(\d{0,4})/, "$1-$2");
       setForm((f) => ({ ...f, telefono: formatted }));
       return;
     }
 
     // dui ########-#
     if (name === "dui") {
-      const formatted = value.replace(/\D/g, "").slice(0, 9).replace(/(\d{8})(\d{0,1})/, "$1-$2");
+      const formatted = value
+        .replace(/\D/g, "")
+        .slice(0, 9)
+        .replace(/(\d{8})(\d{0,1})/, "$1-$2");
       setForm((f) => ({ ...f, dui: formatted }));
       return;
     }
 
     // fecha_nacimiento -> cuando cambia la fecha, si hay fecha limpiamos el campo edad (backend calculará)
     if (name === "fecha_nacimiento") {
-      setForm((f) => ({ ...f, fecha_nacimiento: value, edad: value ? "" : f.edad }));
+      setForm((f) => ({
+        ...f,
+        fecha_nacimiento: value,
+        edad: value ? "" : f.edad,
+      }));
       return;
     }
 
@@ -151,7 +166,11 @@ export default function Pacientes() {
     if (form.fecha_nacimiento) {
       const calc = calcularEdad(form.fecha_nacimiento);
       if (!Number.isNaN(calc)) edad = calc;
-    } else if (form.edad !== "" && form.edad !== null && typeof form.edad !== "undefined") {
+    } else if (
+      form.edad !== "" &&
+      form.edad !== null &&
+      typeof form.edad !== "undefined"
+    ) {
       const n = Number(form.edad);
       if (!Number.isNaN(n)) edad = n;
     }
@@ -192,7 +211,12 @@ export default function Pacientes() {
       return false;
     }
     // debe existir fecha_nacimiento o edad (al menos una)
-    if (!form.fecha_nacimiento && (form.edad === "" || form.edad === null || typeof form.edad === "undefined")) {
+    if (
+      !form.fecha_nacimiento &&
+      (form.edad === "" ||
+        form.edad === null ||
+        typeof form.edad === "undefined")
+    ) {
       setError("Ingrese Fecha de Nacimiento o Edad.");
       return false;
     }
@@ -219,12 +243,22 @@ export default function Pacientes() {
     setLoading(true);
     try {
       // preparar body (misma lógica que el backend esperaba)
-      const body = { nombre: form.nombre, apellido: form.apellido, telefono: form.telefono };
+      const body = {
+        nombre: form.nombre,
+        apellido: form.apellido,
+        telefono: form.telefono,
+      };
 
       // Siempre incluir fecha_nacimiento en el cuerpo: null si fue borrada
-      body.fecha_nacimiento = form.fecha_nacimiento ? form.fecha_nacimiento : null;
+      body.fecha_nacimiento = form.fecha_nacimiento
+        ? form.fecha_nacimiento
+        : null;
       // Si no hay fecha, enviar edad (si existe)
-      if (!body.fecha_nacimiento && form.edad !== "" && typeof form.edad !== "undefined") {
+      if (
+        !body.fecha_nacimiento &&
+        form.edad !== "" &&
+        typeof form.edad !== "undefined"
+      ) {
         body.edad = Number(form.edad);
       }
 
@@ -238,7 +272,7 @@ export default function Pacientes() {
         const res = await fetch("http://localhost:5000/api/pacientes/", {
           method: "POST",
           headers,
-          body: JSON.stringify(body)
+          body: JSON.stringify(body),
         });
         if (!res.ok) {
           let errText = "Error al crear paciente";
@@ -246,23 +280,30 @@ export default function Pacientes() {
             const errBody = await res.json();
             errText = errBody.message || JSON.stringify(errBody);
           } catch (e) {
-            try { errText = await res.text(); } catch (e) {}
+            try {
+              errText = await res.text();
+            } catch (e) {}
           }
           throw new Error(errText);
         }
       } else if (mode === "edit" && editingId) {
-        const res = await fetch(`http://localhost:5000/api/pacientes/${editingId}`, {
-          method: "PUT",
-          headers,
-          body: JSON.stringify(body)
-        });
+        const res = await fetch(
+          `http://localhost:5000/api/pacientes/${editingId}`,
+          {
+            method: "PUT",
+            headers,
+            body: JSON.stringify(body),
+          }
+        );
         if (!res.ok) {
           let errText = "Error al actualizar paciente";
           try {
             const errBody = await res.json();
             errText = errBody.message || JSON.stringify(errBody);
           } catch (e) {
-            try { errText = await res.text(); } catch (e) {}
+            try {
+              errText = await res.text();
+            } catch (e) {}
           }
           throw new Error(errText);
         }
@@ -290,11 +331,13 @@ export default function Pacientes() {
     setForm({
       nombre: p.nombre || "",
       apellido: p.apellido || "",
-      fecha_nacimiento: p.fecha_nacimiento ? p.fecha_nacimiento.split("T")[0] : "",
-      edad: p.fecha_nacimiento ? "" : (p.edad ?? ""),
-      sexo: p.sexo ? String(p.sexo).toUpperCase() : (p.sexo ?? ""),
+      fecha_nacimiento: p.fecha_nacimiento
+        ? p.fecha_nacimiento.split("T")[0]
+        : "",
+      edad: p.fecha_nacimiento ? "" : p.edad ?? "",
+      sexo: p.sexo ? String(p.sexo).toUpperCase() : p.sexo ?? "",
       dui: p.dui ?? "",
-      telefono: p.telefono ?? ""
+      telefono: p.telefono ?? "",
     });
     setMode("view");
     setShowModal(true);
@@ -306,11 +349,13 @@ export default function Pacientes() {
     setForm({
       nombre: p.nombre || "",
       apellido: p.apellido || "",
-      fecha_nacimiento: p.fecha_nacimiento ? p.fecha_nacimiento.split("T")[0] : "",
-      edad: p.fecha_nacimiento ? "" : (p.edad ?? ""),
-      sexo: p.sexo ? String(p.sexo).toUpperCase() : (p.sexo ?? ""),
+      fecha_nacimiento: p.fecha_nacimiento
+        ? p.fecha_nacimiento.split("T")[0]
+        : "",
+      edad: p.fecha_nacimiento ? "" : p.edad ?? "",
+      sexo: p.sexo ? String(p.sexo).toUpperCase() : p.sexo ?? "",
       dui: p.dui ?? "",
-      telefono: p.telefono ?? ""
+      telefono: p.telefono ?? "",
     });
     setMode("edit");
     setShowModal(true);
@@ -320,12 +365,25 @@ export default function Pacientes() {
 
   // ---------- DELETE ----------
   const handleDelete = async (id) => {
-    if (!confirm("¿Eliminar paciente?")) return;
+    const result = await Swal.fire({
+      title: "¿Estás seguro?",
+      text: "¡No podrás revertir esta acción!",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+      confirmButtonText: "Sí, eliminar",
+      cancelButtonText: "Cancelar",
+      reverseButtons: true,
+    });
+
+    if (!result.isConfirmed) return;
+
     setLoading(true);
     try {
       const res = await fetch(`http://localhost:5000/api/pacientes/${id}`, {
         method: "DELETE",
-        headers
+        headers,
       });
       if (!res.ok) {
         let errText = "Error al eliminar paciente";
@@ -333,13 +391,21 @@ export default function Pacientes() {
           const errBody = await res.json();
           errText = errBody.message || JSON.stringify(errBody);
         } catch (e) {
-          try { errText = await res.text(); } catch (e) {}
+          try {
+            errText = await res.text();
+          } catch (e) {}
         }
         throw new Error(errText);
       }
       await fetchPacientes();
+
+      // Mostrar mensaje de éxito
+      Swal.fire("¡Eliminado!", "El paciente ha sido eliminado.", "success");
     } catch (err) {
       setError(err.message);
+
+      // Mostrar mensaje de error
+      Swal.fire("Error", "No se pudo eliminar el paciente.", "error");
     } finally {
       setLoading(false);
     }
@@ -372,12 +438,23 @@ export default function Pacientes() {
   };
 
   return (
-    <div style={{ marginLeft: "250px", minHeight: "100vh", backgroundColor: "#F0F0F0", padding: "20px" }}>
+    <div
+      style={{
+        marginLeft: "250px",
+        minHeight: "100vh",
+        backgroundColor: "#F0F0F0",
+        padding: "20px",
+      }}
+    >
       {/* HEADER */}
       <div className="d-flex justify-content-between align-items-center mb-4">
         <div>
-          <h2 className="fw-bold" style={{ color: "#111" }}>Gestión de Pacientes</h2>
-          <p className="text-muted small mb-0">Administra la información de tus pacientes</p>
+          <h2 className="fw-bold" style={{ color: "#111" }}>
+            Gestión de Pacientes
+          </h2>
+          <p className="text-muted small mb-0">
+            Administra la información de tus pacientes
+          </p>
         </div>
 
         <div className="d-flex gap-2 align-items-center">
@@ -389,7 +466,11 @@ export default function Pacientes() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          <button className="btn" style={{ backgroundColor: "#00C2CC", color: "#fff" }} onClick={openAdd}>
+          <button
+            className="btn"
+            style={{ backgroundColor: "#00C2CC", color: "#fff" }}
+            onClick={openAdd}
+          >
             <i className="bi bi-plus-lg me-2"></i> Nuevo Paciente
           </button>
         </div>
@@ -402,7 +483,10 @@ export default function Pacientes() {
       <div className="row mt-4 mb-4 g-3">
         <div className="col-md-4">
           <div className="card shadow-sm p-3 d-flex flex-row align-items-center">
-            <i className="bi bi-people-fill text-info fs-2 me-3" style={{ color: "#00C2CC" }}></i>
+            <i
+              className="bi bi-people-fill text-info fs-2 me-3"
+              style={{ color: "#00C2CC" }}
+            ></i>
             <div>
               <p className="text-muted small mb-0">Pacientes</p>
               <h5 className="fw-bold mb-0">{pacientes.length}</h5>
@@ -411,7 +495,10 @@ export default function Pacientes() {
         </div>
         <div className="col-md-4">
           <div className="card shadow-sm p-3 d-flex flex-row align-items-center">
-            <i className="bi bi-calendar-event text-info fs-2 me-3" style={{ color: "#00C2CC" }}></i>
+            <i
+              className="bi bi-calendar-event text-info fs-2 me-3"
+              style={{ color: "#00C2CC" }}
+            ></i>
             <div>
               <p className="text-muted small mb-0">Citas hoy</p>
               <h5 className="fw-bold mb-0">—</h5>
@@ -419,7 +506,6 @@ export default function Pacientes() {
           </div>
         </div>
       </div>
-
 
       {/* TABLA */}
       <div className="card shadow-sm">
@@ -439,63 +525,72 @@ export default function Pacientes() {
               </tr>
             </thead>
             <tbody>
-  {loading ? (
-    <tr>
-      <td colSpan="9" className="text-center">Cargando...</td>
-    </tr>
-  ) : listaFiltrada.length === 0 ? (
-    <tr>
-      <td colSpan="9" className="text-center text-muted">No hay pacientes registrados</td>
-    </tr>
-  ) : (
-    listaFiltrada.map((p) => (
-      <tr key={p.id_paciente}>
-        <td>{p.id_paciente}</td>
-        <td>{p.nombre}</td>
-        <td>{p.apellido}</td>
-  <td>{sexoLabel(p.sexo)}</td>
-        <td>{(p.edad || p.edad === 0) ? p.edad : "-"}</td>
-        <td>{p.fecha_nacimiento ? formatDateDDMMYYYY(p.fecha_nacimiento) : "-"}</td>
-        <td>{p.dui || "-"}</td>
-        <td>{p.telefono || "-"}</td>
-        <td>
-          <div className="btn-group" role="group">
-            {/* Redirige a otra página usando window.location */}
-            <button
-              className="btn btn-sm btn-info text-white"
-              onClick={() => navigate("/fichaPaciente", { state: { id: p.id_paciente } })}
-              title="Ver detalle"
-            >
-              <i className="bi bi-eye"></i>
-            </button>
+              {loading ? (
+                <tr>
+                  <td colSpan="9" className="text-center">
+                    Cargando...
+                  </td>
+                </tr>
+              ) : listaFiltrada.length === 0 ? (
+                <tr>
+                  <td colSpan="9" className="text-center text-muted">
+                    No hay pacientes registrados
+                  </td>
+                </tr>
+              ) : (
+                listaFiltrada.map((p) => (
+                  <tr key={p.id_paciente}>
+                    <td>{p.id_paciente}</td>
+                    <td>{p.nombre}</td>
+                    <td>{p.apellido}</td>
+                    <td>{sexoLabel(p.sexo)}</td>
+                    <td>{p.edad || p.edad === 0 ? p.edad : "-"}</td>
+                    <td>
+                      {p.fecha_nacimiento
+                        ? formatDateDDMMYYYY(p.fecha_nacimiento)
+                        : "-"}
+                    </td>
+                    <td>{p.dui || "-"}</td>
+                    <td>{p.telefono || "-"}</td>
+                    <td>
+                      <div className="btn-group" role="group">
+                        {/* Redirige a otra página usando window.location */}
+                        <button
+                          className="btn btn-sm btn-info text-white"
+                          onClick={() =>
+                            navigate("/fichaPaciente", {
+                              state: { id: p.id_paciente },
+                            })
+                          }
+                          title="Ver detalle"
+                        >
+                          <i className="bi bi-eye"></i>
+                        </button>
 
-            <button
-              className="btn btn-sm btn-primary"
-              onClick={() => openEdit(p)}
-              title="Editar"
-            >
-              <i className="bi bi-pencil"></i>
-            </button>
+                        <button
+                          className="btn btn-sm btn-primary"
+                          onClick={() => openEdit(p)}
+                          title="Editar"
+                        >
+                          <i className="bi bi-pencil"></i>
+                        </button>
 
-            <button
-              className="btn btn-sm btn-danger"
-              onClick={() => handleDelete(p.id_paciente)}
-              title="Eliminar"
-            >
-              <i className="bi bi-trash"></i>
-            </button>
-          </div>
-        </td>
-      </tr>
-    ))
-  )}
-</tbody>
-
-            
+                        <button
+                          className="btn btn-sm btn-danger"
+                          onClick={() => handleDelete(p.id_paciente)}
+                          title="Eliminar"
+                        >
+                          <i className="bi bi-trash"></i>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
           </table>
         </div>
       </div>
-
 
       {/* ---------- MODAL CENTRADO (ADD / VIEW / EDIT) ---------- */}
       {showModal && (
@@ -515,7 +610,7 @@ export default function Pacientes() {
               maxHeight: "90vh",
               overflowY: "auto",
               borderRadius: "8px",
-              padding: "20px"
+              padding: "20px",
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -604,17 +699,29 @@ export default function Pacientes() {
                 )}
 
                 {/* Si hay fecha y es menor de 18 mostramos edad calculada (readOnly) */}
-                {form.fecha_nacimiento && edadLocal !== null && edadLocal < 18 && (
-                  <div className="col-md-6 mb-3">
-                    <label className="form-label">Edad (calculada)</label>
-                    <input type="number" className="form-control" value={edadLocal} readOnly />
-                  </div>
-                )}
+                {form.fecha_nacimiento &&
+                  edadLocal !== null &&
+                  edadLocal < 18 && (
+                    <div className="col-md-6 mb-3">
+                      <label className="form-label">Edad (calculada)</label>
+                      <input
+                        type="number"
+                        className="form-control"
+                        value={edadLocal}
+                        readOnly
+                      />
+                    </div>
+                  )}
 
                 {/* Mostrar DUI si la edad local es >= 18 (o si no hay fecha pero se ingresó edad >=18) */}
-                {(edadLocal !== null && edadLocal >= 18) && (
+                {edadLocal !== null && edadLocal >= 18 && (
                   <div className="col-md-6 mb-3">
-                    <label className="form-label">DUI {mode !== "view" && <small className="text-muted"> (########-#)</small>}</label>
+                    <label className="form-label">
+                      DUI{" "}
+                      {mode !== "view" && (
+                        <small className="text-muted"> (########-#)</small>
+                      )}
+                    </label>
                     <input
                       name="dui"
                       className="form-control"
@@ -642,10 +749,21 @@ export default function Pacientes() {
               </div>
 
               <div className="d-flex justify-content-end gap-2 mt-3">
-                <button type="button" className="btn btn-secondary" onClick={closeModal}>Cerrar</button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={closeModal}
+                >
+                  Cerrar
+                </button>
 
                 {mode !== "view" && (
-                  <button type="submit" className="btn" style={{ backgroundColor: "#00C2CC", color: "#fff" }} disabled={loading}>
+                  <button
+                    type="submit"
+                    className="btn"
+                    style={{ backgroundColor: "#00C2CC", color: "#fff" }}
+                    disabled={loading}
+                  >
                     {loading ? "Guardando..." : "Guardar"}
                   </button>
                 )}
