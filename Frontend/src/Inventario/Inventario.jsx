@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from 'sweetalert2';
+import Swal from "sweetalert2";
 
 export default function Inventario() {
   const [showModal, setShowModal] = useState(false);
@@ -30,7 +30,7 @@ export default function Inventario() {
     stock: 0,
     stock_minimo: 0,
     unidad_medida: "",
-    fecha_vencimiento: ""
+    fecha_vencimiento: "",
   });
 
   // fetch insumos
@@ -38,7 +38,9 @@ export default function Inventario() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("http://localhost:5000/api/inventario/insumos", { headers });
+      const res = await fetch("http://localhost:5000/api/inventario/insumos", {
+        headers,
+      });
       if (!res.ok) throw new Error(`Error ${res.status}`);
       const data = await res.json();
       setProductos(Array.isArray(data) ? data : []);
@@ -92,9 +94,10 @@ export default function Inventario() {
       const fechaVencimiento = new Date(form.fecha_vencimiento);
       const fechaActual = new Date();
       fechaActual.setHours(0, 0, 0, 0); // Establecemos la hora a 00:00 para comparar solo fechas
-      
+
       if (fechaVencimiento < fechaActual) {
-        newErrors.fecha_vencimiento = "La fecha de vencimiento no puede ser anterior a la fecha actual";
+        newErrors.fecha_vencimiento =
+          "La fecha de vencimiento no puede ser anterior a la fecha actual";
       }
     }
 
@@ -107,15 +110,15 @@ export default function Inventario() {
     const newErrors = { ...errors };
 
     switch (name) {
-      case 'nombre_insumo':
+      case "nombre_insumo":
         if (!value.trim()) {
           newErrors.nombre_insumo = "El nombre del producto es obligatorio";
         } else {
           delete newErrors.nombre_insumo;
         }
         break;
-      
-      case 'stock':
+
+      case "stock":
         if (value === "" || value === null) {
           newErrors.stock = "El stock es obligatorio";
         } else if (parseInt(value) < 0) {
@@ -124,27 +127,29 @@ export default function Inventario() {
           delete newErrors.stock;
         }
         break;
-      
-      case 'stock_minimo':
+
+      case "stock_minimo":
         if (value === "" || value === null) {
           newErrors.stock_minimo = "El stock mínimo es obligatorio";
         } else if (parseInt(value) < 0) {
           newErrors.stock_minimo = "El stock mínimo no puede ser negativo";
         } else if (parseInt(value) > parseInt(form.stock)) {
-          newErrors.stock_minimo = "El stock mínimo no puede ser mayor al stock";
+          newErrors.stock_minimo =
+            "El stock mínimo no puede ser mayor al stock";
         } else {
           delete newErrors.stock_minimo;
         }
         break;
-      
-      case 'fecha_vencimiento':
+
+      case "fecha_vencimiento":
         if (value) {
           const fechaVencimiento = new Date(value);
           const fechaActual = new Date();
           fechaActual.setHours(0, 0, 0, 0);
-          
+
           if (fechaVencimiento < fechaActual) {
-            newErrors.fecha_vencimiento = "La fecha de vencimiento no puede ser anterior a la fecha actual";
+            newErrors.fecha_vencimiento =
+              "La fecha de vencimiento no puede ser anterior a la fecha actual";
           } else {
             delete newErrors.fecha_vencimiento;
           }
@@ -152,7 +157,7 @@ export default function Inventario() {
           delete newErrors.fecha_vencimiento;
         }
         break;
-      
+
       default:
         break;
     }
@@ -169,7 +174,7 @@ export default function Inventario() {
       stock: 0,
       stock_minimo: 0,
       unidad_medida: "",
-      fecha_vencimiento: ""
+      fecha_vencimiento: "",
     });
     setErrors({});
     setTouched({});
@@ -187,62 +192,57 @@ export default function Inventario() {
       unidad_medida: producto.unidad_medida || "",
       fecha_vencimiento: producto.fecha_vencimiento
         ? producto.fecha_vencimiento.split("T")[0]
-        : ""
+        : "",
     });
     setErrors({});
     setTouched({});
     setShowModal(true);
   };
 
-const handleDelete = async (id) => {
-  const result = await Swal.fire({
-    title: '¿Estás seguro?',
-    text: "¡No podrás revertir esta acción!",
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonColor: '#d33',
-    cancelButtonColor: '#3085d6',
-    confirmButtonText: 'Sí, eliminar',
-    cancelButtonText: 'Cancelar',
-    reverseButtons: true
-  });
+  const handleDelete = async (id) => {
+    const result = await Swal.fire({
+      title: "¿Estás seguro?",
+      text: "¡No podrás revertir esta acción!",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+      confirmButtonText: "Sí, eliminar",
+      cancelButtonText: "Cancelar",
+      reverseButtons: true,
+    });
 
-  if (result.isConfirmed) {
-    setLoading(true);
-    try {
-      const res = await fetch(`http://localhost:5000/api/inventario/insumos/${id}`, {
-        method: "DELETE",
-        headers
-      });
-      if (!res.ok) throw new Error("Error al eliminar insumo");
-      
-      await fetchInsumos();
-      
-      // Mostrar mensaje de éxito
-      Swal.fire(
-        '¡Eliminado!',
-        'El producto ha sido eliminado.',
-        'success'
-      );
-    } catch (err) {
-      setError(err.message || "Error al eliminar");
-      
-      // Mostrar mensaje de error
-      Swal.fire(
-        'Error',
-        'No se pudo eliminar el producto.',
-        'error'
-      );
-    } finally {
-      setLoading(false);
+    if (result.isConfirmed) {
+      setLoading(true);
+      http: try {
+        const res = await fetch(
+          `http://localhost:5000/api/inventario/insumos/${id}`,
+          {
+            method: "DELETE",
+            headers,
+          }
+        );
+        if (!res.ok) throw new Error("Error al eliminar insumo");
+
+        await fetchInsumos();
+
+        // Mostrar mensaje de éxito
+        Swal.fire("¡Eliminado!", "El producto ha sido eliminado.", "success");
+      } catch (err) {
+        setError(err.message || "Error al eliminar");
+
+        // Mostrar mensaje de error
+        Swal.fire("Error", "No se pudo eliminar el producto.", "error");
+      } finally {
+        setLoading(false);
+      }
     }
-  }
-};
+  };
 
   const handleFormChange = (e) => {
     const { name, value } = e.target;
     setForm((f) => ({ ...f, [name]: value }));
-    
+
     // Validar el campo si ya fue tocado
     if (touched[name]) {
       validateField(name, value);
@@ -257,21 +257,21 @@ const handleDelete = async (id) => {
 
   const handleFormSubmit = async (e) => {
     e.preventDefault();
-    
+
     // Marcar todos los campos como tocados
     const allTouched = {
       nombre_insumo: true,
       stock: true,
       stock_minimo: true,
-      fecha_vencimiento: true
+      fecha_vencimiento: true,
     };
     setTouched(allTouched);
-    
+
     // Validar todo el formulario
     if (!validateForm()) {
       return; // Detener el envío si hay errores
     }
-    
+
     setLoading(true);
     try {
       const body = {
@@ -280,15 +280,18 @@ const handleDelete = async (id) => {
         stock: Number(form.stock),
         stock_minimo: Number(form.stock_minimo),
         unidad_medida: form.unidad_medida,
-        fecha_vencimiento: form.fecha_vencimiento || null
+        fecha_vencimiento: form.fecha_vencimiento || null,
       };
 
       if (!editingId) {
-        const res = await fetch("http://localhost:5000/api/inventario/insumos", {
-          method: "POST",
-          headers,
-          body: JSON.stringify(body)
-        });
+        const res = await fetch(
+          "http://localhost:5000/api/inventario/insumos",
+          {
+            method: "POST",
+            headers,
+            body: JSON.stringify(body),
+          }
+        );
         if (!res.ok) throw new Error("Error al crear insumo");
       } else {
         const res = await fetch(
@@ -296,7 +299,7 @@ const handleDelete = async (id) => {
           {
             method: "PUT",
             headers,
-            body: JSON.stringify(body)
+            body: JSON.stringify(body),
           }
         );
         if (!res.ok) throw new Error("Error al actualizar insumo");
@@ -345,10 +348,16 @@ const handleDelete = async (id) => {
   });
 
   return (
-    <div className="d-flex" style={{ backgroundColor: "#f8f9fa", minHeight: "100vh" }}>
+    <div
+      className="d-flex"
+      style={{ backgroundColor: "#f8f9fa", minHeight: "100vh" }}
+    >
       {/* Sidebar ya está en otra vista */}
 
-      <div className="flex-grow-1" style={{ marginLeft: "250px", padding: "20px" }}>
+      <div
+        className="flex-grow-1"
+        style={{ marginLeft: "250px", padding: "20px" }}
+      >
         {/* Header */}
         <div className="d-flex align-items-center mb-2">
           <h1 className="h4 mb-0">Inventario</h1>
@@ -361,7 +370,10 @@ const handleDelete = async (id) => {
               onChange={(e) => setSearch(e.target.value)}
               style={{ width: "220px" }}
             />
-            <button className="btn btn-info text-white fw-semibold" onClick={handleAgregar}>
+            <button
+              className="btn btn-info text-white fw-semibold"
+              onClick={handleAgregar}
+            >
               Agregar Producto
             </button>
           </div>
@@ -369,16 +381,18 @@ const handleDelete = async (id) => {
         <p className="text-muted">Gestión de insumos</p>
         {/* Tabla de productos */}
         <div className="card mb-3" style={{ height: "390px" }}>
-         <div className="row align-items-center mb-3">
-          <div className="col">
-            <h5 className="mb-0">Lista de productos</h5>
+          <div className="row align-items-center mb-3">
+            <div className="col">
+              <h5 className="mb-0">Lista de productos</h5>
+            </div>
+            <div className="col text-end">
+              <span className="badge bg-danger me-2">Stock Bajo</span>
+              <span className="badge bg-warning text-dark me-2">
+                Por Vencer
+              </span>
+              <span className="badge bg-success">Stock Normal</span>
+            </div>
           </div>
-          <div className="col text-end">
-            <span className="badge bg-danger me-2">Stock Bajo</span>
-            <span className="badge bg-warning text-dark me-2">Por Vencer</span>
-            <span className="badge bg-success">Stock Normal</span>
-          </div>
-        </div>
           <div className="card-body p-0">
             <table className="table mb-0 align-middle">
               <thead className="table-light">
@@ -409,7 +423,9 @@ const handleDelete = async (id) => {
                   currentData.map((p) => (
                     <tr key={p.id_insumo}>
                       <td>{p.id_insumo}</td>
-                      <td><strong>{p.nombre_insumo}</strong></td>
+                      <td>
+                        <strong>{p.nombre_insumo}</strong>
+                      </td>
                       <td>{p.descripcion}</td>
                       <td>
                         <span
@@ -425,11 +441,19 @@ const handleDelete = async (id) => {
                         </span>
                       </td>
                       <td>{p.unidad_medida}</td>
-                      <td>{p.fecha_vencimiento ? p.fecha_vencimiento.split("T")[0] : "-"}</td>
+                      <td>
+                        {p.fecha_vencimiento
+                          ? p.fecha_vencimiento.split("T")[0]
+                          : "-"}
+                      </td>
                       <td>
                         <button
                           className="btn btn-sm btn-outline-success"
-                          onClick={() => navigate("/producto", { state: { id: p.id_insumo } })}
+                          onClick={() =>
+                            navigate("/producto", {
+                              state: { id: p.id_insumo },
+                            })
+                          }
                         >
                           <i className="bi bi-eye"></i>
                         </button>
@@ -439,7 +463,7 @@ const handleDelete = async (id) => {
                         >
                           <i className="bi bi-pencil"></i>
                         </button>
-                       <button
+                        <button
                           className="btn btn-sm btn-outline-danger"
                           onClick={() => handleDelete(p.id_insumo)}
                         >
@@ -458,7 +482,10 @@ const handleDelete = async (id) => {
         <nav>
           <ul className="pagination pagination-sm justify-content-end">
             <li className={`page-item ${currentPage === 1 ? "disabled" : ""}`}>
-              <button className="page-link" onClick={() => setCurrentPage(currentPage - 1)}>
+              <button
+                className="page-link"
+                onClick={() => setCurrentPage(currentPage - 1)}
+              >
                 Anterior
               </button>
             </li>
@@ -467,90 +494,107 @@ const handleDelete = async (id) => {
                 key={i + 1}
                 className={`page-item ${currentPage === i + 1 ? "active" : ""}`}
               >
-                <button className="page-link" onClick={() => setCurrentPage(i + 1)}>
+                <button
+                  className="page-link"
+                  onClick={() => setCurrentPage(i + 1)}
+                >
                   {i + 1}
                 </button>
               </li>
             ))}
-            <li className={`page-item ${currentPage === totalPages ? "disabled" : ""}`}>
-              <button className="page-link" onClick={() => setCurrentPage(currentPage + 1)}>
+            <li
+              className={`page-item ${
+                currentPage === totalPages ? "disabled" : ""
+              }`}
+            >
+              <button
+                className="page-link"
+                onClick={() => setCurrentPage(currentPage + 1)}
+              >
                 Siguiente
               </button>
             </li>
           </ul>
         </nav>
 
-
-           {/* Alertas y advertencias (dinámicas, mismo diseño) */}
-            <div className="alertas mt-3 card">
-              <div className="row g-3 p-3">
-                <div className="col-md-6">
-                  <h6 className="fw-bold text-danger">Alertas del Sistema</h6>
-                  {critical.length === 0 && lowStock.length === 0 ? (
-                    <div className="bg-light p-2 rounded text-muted">
-                      No hay alertas de stock
-                    </div>
-                  ) : (
-                    <>
-                      {critical.slice(0, 3).map((p) => (
-                        <div
-                          key={`crit-${p.id_insumo}`}
-                          className="bg-danger bg-opacity-10 p-2 rounded text-danger mb-2"
-                        >
-                          <strong>{p.nombre_insumo}</strong>
-                          <br />
-                          Stock agotado: {p.stock}
-                        </div>
-                      ))}
-                      {lowStock.slice(0, 3 - Math.min(critical.length, 3)).map((p) => (
-                        <div
-                          key={`low-${p.id_insumo}`}
-                          className="bg-danger bg-opacity-10 p-2 rounded text-danger mb-2"
-                        >
-                          <strong>{p.nombre_insumo}</strong>
-                          <br />
-                          Stock bajo: {p.stock} (mín {p.stock_minimo})
-                        </div>
-                      ))}
-                      {critical.length + lowStock.length > 3 && (
-                        <div className="small text-muted">y {critical.length + lowStock.length - 3} más...</div>
-                      )}
-                    </>
-                  )}
+        {/* Alertas y advertencias (dinámicas, mismo diseño) */}
+        <div className="alertas mt-3 card">
+          <div className="row g-3 p-3">
+            <div className="col-md-6">
+              <h6 className="fw-bold text-danger">Alertas del Sistema</h6>
+              {critical.length === 0 && lowStock.length === 0 ? (
+                <div className="bg-light p-2 rounded text-muted">
+                  No hay alertas de stock
                 </div>
-                <div className="col-md-6">
-                  <h6 className="fw-bold text-warning">Advertencias</h6>
-                  {expiring.length === 0 ? (
-                    <div className="bg-warning bg-opacity-25 p-2 rounded text-dark">
-                      Sin advertencias
+              ) : (
+                <>
+                  {critical.slice(0, 3).map((p) => (
+                    <div
+                      key={`crit-${p.id_insumo}`}
+                      className="bg-danger bg-opacity-10 p-2 rounded text-danger mb-2"
+                    >
+                      <strong>{p.nombre_insumo}</strong>
+                      <br />
+                      Stock agotado: {p.stock}
                     </div>
-                  ) : (
-                    <>
-                      {expiring.slice(0, 3).map((p) => (
-                        <div
-                          key={`exp-${p.id_insumo}`}
-                          className="bg-warning bg-opacity-25 p-2 rounded text-dark mb-2"
-                        >
-                          <strong>{p.nombre_insumo}</strong>
-                          <br />
-                          Vence en {daysUntil(p.fecha_vencimiento)} días
-                        </div>
-                      ))}
-                      {expiring.length > 3 && (
-                        <div className="small text-muted">y {expiring.length - 3} más...</div>
-                      )}
-                    </>
+                  ))}
+                  {lowStock
+                    .slice(0, 3 - Math.min(critical.length, 3))
+                    .map((p) => (
+                      <div
+                        key={`low-${p.id_insumo}`}
+                        className="bg-danger bg-opacity-10 p-2 rounded text-danger mb-2"
+                      >
+                        <strong>{p.nombre_insumo}</strong>
+                        <br />
+                        Stock bajo: {p.stock} (mín {p.stock_minimo})
+                      </div>
+                    ))}
+                  {critical.length + lowStock.length > 3 && (
+                    <div className="small text-muted">
+                      y {critical.length + lowStock.length - 3} más...
+                    </div>
                   )}
-                </div>
-              </div>
+                </>
+              )}
             </div>
+            <div className="col-md-6">
+              <h6 className="fw-bold text-warning">Advertencias</h6>
+              {expiring.length === 0 ? (
+                <div className="bg-warning bg-opacity-25 p-2 rounded text-dark">
+                  Sin advertencias
+                </div>
+              ) : (
+                <>
+                  {expiring.slice(0, 3).map((p) => (
+                    <div
+                      key={`exp-${p.id_insumo}`}
+                      className="bg-warning bg-opacity-25 p-2 rounded text-dark mb-2"
+                    >
+                      <strong>{p.nombre_insumo}</strong>
+                      <br />
+                      Vence en {daysUntil(p.fecha_vencimiento)} días
+                    </div>
+                  ))}
+                  {expiring.length > 3 && (
+                    <div className="small text-muted">
+                      y {expiring.length - 3} más...
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Modal */}
       <div
         className={`modal fade ${showModal ? "show d-block" : ""}`}
         tabIndex="-1"
-        style={{ backgroundColor: showModal ? "rgba(0,0,0,0.5)" : "transparent" }}
+        style={{
+          backgroundColor: showModal ? "rgba(0,0,0,0.5)" : "transparent",
+        }}
       >
         <div className="modal-dialog modal-dialog-centered">
           <div className="modal-content">
@@ -572,7 +616,9 @@ const handleDelete = async (id) => {
                     onChange={handleFormChange}
                     onBlur={handleBlur}
                     type="text"
-                    className={`form-control ${errors.nombre_insumo ? 'is-invalid' : ''}`}
+                    className={`form-control ${
+                      errors.nombre_insumo ? "is-invalid" : ""
+                    }`}
                     required
                   />
                   {errors.nombre_insumo && (
@@ -599,14 +645,15 @@ const handleDelete = async (id) => {
                     onChange={handleFormChange}
                     onBlur={handleBlur}
                     type="number"
-                    className={`form-control ${errors.stock ? 'is-invalid' : ''}`}
+                    className={`form-control ${
+                      errors.stock ? "is-invalid" : ""
+                    }`}
                     required
+                    disabled={editingId !== null}
                     min="0"
                   />
                   {errors.stock && (
-                    <div className="invalid-feedback">
-                      {errors.stock}
-                    </div>
+                    <div className="invalid-feedback">{errors.stock}</div>
                   )}
                 </div>
                 <div className="mb-3">
@@ -617,7 +664,9 @@ const handleDelete = async (id) => {
                     onChange={handleFormChange}
                     onBlur={handleBlur}
                     type="number"
-                    className={`form-control ${errors.stock_minimo ? 'is-invalid' : ''}`}
+                    className={`form-control ${
+                      errors.stock_minimo ? "is-invalid" : ""
+                    }`}
                     required
                     min="0"
                   />
@@ -645,8 +694,10 @@ const handleDelete = async (id) => {
                     onChange={handleFormChange}
                     onBlur={handleBlur}
                     type="date"
-                    className={`form-control ${errors.fecha_vencimiento ? 'is-invalid' : ''}`}
-                    min={new Date().toISOString().split('T')[0]}
+                    className={`form-control ${
+                      errors.fecha_vencimiento ? "is-invalid" : ""
+                    }`}
+                    min={new Date().toISOString().split("T")[0]}
                   />
                   {errors.fecha_vencimiento && (
                     <div className="invalid-feedback">
@@ -657,7 +708,10 @@ const handleDelete = async (id) => {
               </form>
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setShowModal(false)}>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowModal(false)}
+              >
                 Cancelar
               </button>
               <button
