@@ -1,6 +1,8 @@
 const db = require("../config/db");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const nodemailer = require("nodemailer");
+const crypto = require("crypto");
 const JWT_SECRET = process.env.JWT_SECRET;
 
 exports.login = (req, res) => {
@@ -44,7 +46,7 @@ Para efectos de depuración: imprime la contraseña recibida y su hash (solo par
 
             // Login normal: genera el token
 
-            
+
             const payload = {
                 id_usuario: user.id_usuario,
                 nombre_usuario: user.nombre_usuario,
@@ -61,7 +63,8 @@ Para efectos de depuración: imprime la contraseña recibida y su hash (solo par
                     apellido: user.apellido,
                     nombre_usuario: user.nombre_usuario,
                     rol: user.rol,
-                    estado: user.estado
+                    estado: user.estado,
+                    requiereCambioPassword: user.requiere_cambio_password
                 }
             });
         }
@@ -133,7 +136,7 @@ exports.changePassword = (req, res) => {
         // Hashear la nueva contraseña
         bcrypt.hash(newPassword, 10, (err2, hashed) => {
             if (err2) return res.status(500).json({ message: 'Error al encriptar la contraseña', error: err2 });
-            db.query('UPDATE usuario SET password = ?, updated_at = NOW() WHERE id_usuario = ?', [hashed, userId], (err3) => {
+            db.query('UPDATE usuario SET password = ?, requiere_cambio_password = 0, updated_at = NOW() WHERE id_usuario = ?', [hashed, userId], (err3) => {
                 if (err3) return res.status(500).json({ message: 'Error al actualizar contraseña', error: err3 });
                 return res.status(200).json({ message: 'Contraseña actualizada correctamente' });
             });
@@ -141,5 +144,90 @@ exports.changePassword = (req, res) => {
     });
 };
 
+// Recuperar contraseña (sin autenticación)
+exports.recuperarPassword = (req, res) => {
+    const { nombre_usuario } = req.body;
 
+    if (!nombre_usuario) {
+        return res.status(400).json({ message: "El nombre de usuario es obligatorio." });
+    }
 
+    db.query("SELECT * FROM usuario WHERE nombre_usuario = ?", [nombre_usuario], async (err, results) => {
+        if (err) return res.status(500).json({ message: "Error en el servidor." });
+
+        if (results.length === 0) {
+            return res.status(200).json({
+                message: "Si el usuario existe, se enviarán instrucciones."
+            });
+        }
+
+        const usuario = results[0];
+
+        // Generar contraseña temporal segura
+        const tempPassword = crypto.randomBytes(6).toString("base64").replace(/[^a-zA-Z0-9]/g, '').slice(0, 10);
+        const hashedPassword = await bcrypt.hash(tempPassword, 10);
+
+        // Actualizar la contraseña y marcar que requiere cambio
+        db.query(
+            "UPDATE usuario SET password = ?, requiere_cambio_password = 1, updated_at = NOW() WHERE id_usuario = ?",
+            [hashedPassword, usuario.id_usuario],
+            (updateErr) => {
+                if (updateErr) {
+                    return res.status(500).json({ message: "Error actualizando la contraseña." });
+                }
+
+                // Configuración de Nodemailer
+                const transporter = nodemailer.createTransport({
+                    service: "gmail",
+                    auth: {
+                        user: process.env.EMAIL_USER,
+                        pass: process.env.EMAIL_PASS,
+                    },
+                });
+
+                const mailOptions = {
+                    from: process.env.EMAIL_USER,
+                    to: usuario.correo,
+                    subject: "Recuperación de Contraseña",
+                    html: `
+                        <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; padding: 24px; background: #fafcff;">
+                            <h2 style="color: #00C2CC; text-align: center;">Recuperación de contraseña</h2>
+                            <p>Hola <b>${usuario.nombre_usuario}</b>,</p>
+                            <p>Se ha generado una nueva contraseña temporal para tu cuenta. Utilízala para iniciar sesión y cámbiala inmediatamente por tu seguridad.</p>
+                            <ul>
+                                <li><b>Nombre de usuario:</b> ${usuario.nombre_usuario}</li>
+                            </ul>
+                            <div style="margin: 24px 0; padding: 16px; background: #f1f8fa; border-radius: 6px; text-align: center;">
+                                <span style="font-size: 1.1em; color: #222;">Contraseña temporal:</span><br>
+                                <span style="font-size: 1.3em; font-weight: bold; letter-spacing: 2px; color: #00C2CC;">${tempPassword}</span>
+                            </div>
+                            <p style="color: #888; font-size: 0.95em;">Si no solicitaste este cambio, ignora este mensaje o contacta al administrador.</p>
+                            <hr style="margin: 24px 0;">
+                            <p style="font-size: 0.9em; color: #aaa; text-align: center;">&copy; ${new Date().getFullYear()} Sistema de Gestión</p>
+                        </div>
+                    `,
+                };
+
+                transporter.sendMail(mailOptions, (error) => {
+                    if (error) {
+                        console.error("Error enviando correo:", error);
+                        return res.status(500).json({ message: "Error al enviar el correo." });
+                    }
+
+                    res.status(200).json({
+                        message: "Si el usuario existe, se enviará una contraseña temporal al correo registrado.",
+                        correoOfuscado: ofuscarCorreo(usuario.correo)
+                    });
+                });
+            }
+        );
+    });
+};
+
+function ofuscarCorreo(correo) {
+    // Ejemplo: p****a@c****o.com
+    const [user, domain] = correo.split("@");
+    const userMasked = user[0] + "****" + user[user.length - 1];
+    const domainMasked = domain[0] + "****" + domain[domain.length - 5] + domain.slice(-4);
+    return `${userMasked}@${domainMasked}`;
+}

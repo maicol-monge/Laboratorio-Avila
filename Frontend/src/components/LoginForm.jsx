@@ -15,10 +15,27 @@ const LoginForm = () => {
                 .post("http://localhost:5000/api/users/login", { nombre_usuario: username, contrasena: password })
                 .then((response) => {
                     const data = response.data;
+                    console.log("Respuesta del servidor:", data);
+
                     // Login normal: guarda token y datos de usuario
-                    const { id_usuario, nombre, apellido, nombre_usuario, rol, estado } = data.user;
-                    localStorage.setItem("user", JSON.stringify({ id_usuario, nombre, apellido, nombre_usuario, rol: Number(rol), estado }));
+                    const { id_usuario, nombre, apellido, nombre_usuario, rol, estado, requiereCambioPassword } = data.user;
+                    localStorage.setItem("user", JSON.stringify({ id_usuario, nombre, apellido, nombre_usuario, rol: Number(rol), estado, requiereCambioPassword }));
+
                     localStorage.setItem("token", data.token); // Guarda el token para futuras peticiones
+
+                     // Si requiere cambio de contraseña
+                    if (data.user.requiereCambioPassword === 1) {
+                        Swal.fire({
+                            title: "Contraseña temporal",
+                            text: "Debes cambiar tu contraseña temporal antes de continuar.",
+                            icon: "warning",
+                            showConfirmButton: true
+                        }).then(() => {
+                            // Puedes pasar el id_usuario por estado o query si lo necesitas
+                            navigate("/administrador", { state: { id_usuario: data.user.id_usuario } });
+                        });
+                        return;
+                    }
                     console.log("Usuario con rol:", rol);
                     if (rol == 0) {
                         console.log("Navegando a /home_normal");
