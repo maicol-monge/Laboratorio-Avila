@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useRef } from 'react';
 import axios from 'axios';
 
 export default function Citas() {
@@ -27,6 +28,8 @@ export default function Citas() {
 	const [editingId, setEditingId] = useState(null);
 	const [editingPacienteLabel, setEditingPacienteLabel] = useState('');
 
+	const fechaInputRef = useRef(null);
+
 	// filtros: fecha inicio, fecha fin, estado
 	const getYMD = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 	const todayYMD = getYMD(new Date());
@@ -36,6 +39,53 @@ export default function Citas() {
 	const [filterEstado, setFilterEstado] = useState('1'); // por defecto 1 - Pendiente
 
 	const navigate = useNavigate();
+	const location = useLocation();
+	// If navigated from FichaPaciente, location.state.preselectPacienteId may be present
+	const preselectPacienteIdFromLocation = location?.state?.preselectPacienteId || null;
+	const openedFromLocationRef = useRef(false);
+
+	useEffect(() => {
+			// if navigation provided a preselected paciente id, prefill and open the modal once
+			if (preselectPacienteIdFromLocation && !openedFromLocationRef.current) {
+				openedFromLocationRef.current = true;
+				(async () => {
+					try {
+						// try to fetch the paciente to show label
+						const r = await api.get(`/api/pacientes/${preselectPacienteIdFromLocation}`);
+						const pacienteData = r?.data;
+						if (pacienteData) {
+							setForm({ id_paciente: preselectPacienteIdFromLocation, fecha_cita: '', hora_cita: '', observaciones: '' });
+							setEditingPacienteLabel(((pacienteData.nombre || '') + ' ' + (pacienteData.apellido || '')).trim());
+						} else {
+							// still set id so modal shows readonly patient id
+							setForm(f => ({ ...f, id_paciente: preselectPacienteIdFromLocation }));
+							setEditingPacienteLabel(`Paciente #${preselectPacienteIdFromLocation}`);
+						}
+
+						// calcular fecha/hora mínima en zona El Salvador (UTC-6) and default values
+						const now = new Date();
+						const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
+						const svMs = utcMs + (-6 * 3600000);
+						const svNow = new Date(svMs);
+						const pad = (n) => String(n).padStart(2, '0');
+						const svDate = `${svNow.getFullYear()}-${pad(svNow.getMonth() + 1)}-${pad(svNow.getDate())}`;
+						const svTime = `${pad(svNow.getHours())}:${pad(svNow.getMinutes())}:${pad(svNow.getSeconds())}`;
+						setSvMinDate(svDate);
+						setSvMinTime(svTime);
+						const defaultHM = svTime.slice(0,5);
+						setForm(f => ({ ...f, fecha_cita: svDate, hora_cita: defaultHM }));
+						setHoraH(defaultHM.slice(0,2));
+						setHoraM(defaultHM.slice(3,5));
+						setEditingId(null);
+						setQuickMode(false);
+						setShowModal(true);
+					} catch (e) {
+						console.warn('Error preselecting paciente for new cita', e);
+					}
+				})();
+			}
+			// eslint-disable-next-line react-hooks/exhaustive-deps
+		}, [preselectPacienteIdFromLocation]);
 
 	// Pagination state (similar behaviour to Inventario.jsx)
 	const [currentPage, setCurrentPage] = useState(1);
@@ -215,6 +265,18 @@ export default function Citas() {
 	async function openNew() {
 		setForm({ id_paciente: '', fecha_cita: '', hora_cita: '', observaciones: '' });
 		setEditingPacienteLabel('');
+		// si venimos con preselectPacienteId, intentar cargar y fijar el paciente
+		if (preselectPacienteIdFromLocation) {
+			try {
+				const r = await api.get(`/api/pacientes/${preselectPacienteIdFromLocation}`);
+				if (r && r.data) {
+					setForm(f => ({ ...f, id_paciente: preselectPacienteIdFromLocation }));
+					setEditingPacienteLabel(((r.data.nombre || '') + ' ' + (r.data.apellido || '')).trim());
+				}
+			} catch (e) {
+				console.warn('No se pudo precargar paciente preseleccionado', e);
+			}
+		}
 		// intentar cargar pacientes antes de abrir el modal para mostrar errores si los hay
 		await fetchPacientes();
 		// calcular fecha/hora mínima en zona El Salvador (UTC-6)
@@ -233,8 +295,18 @@ export default function Citas() {
 		setHoraH(defaultHM.slice(0,2));
 		setHoraM(defaultHM.slice(3,5));
 		setEditingId(null);
+		// if a paciente is preselected, ensure estado default is '1'
+		setForm(f => ({ ...f, estado: f.id_paciente ? (f.estado || '1') : (f.estado || '1') }));
 		setShowModal(true);
 	}
+
+	// autofocus fecha input when modal opens and a paciente is preselected
+	useEffect(() => {
+		if (showModal && form.id_paciente && fechaInputRef.current) {
+			// small timeout to ensure modal is visible
+			setTimeout(() => fechaInputRef.current.focus?.(), 50);
+		}
+	}, [showModal, form.id_paciente]);
 
 	function openEdit(c) {
 		console.debug('openEdit called for cita:', c);
@@ -620,22 +692,29 @@ export default function Citas() {
 											<strong>Paciente</strong>
 											<div className="small text-muted">Seleccione existente o cree uno rápido</div>
 										</div>
-										<div>
-											{!editingId && (
-												<button type="button" className="btn btn-sm btn-outline-secondary me-2" onClick={() => { setQuickMode(q => !q); if (!quickMode) setPacienteQuery(''); }}>
-													{quickMode ? 'Usar select' : 'Crear paciente rápido'}
-												</button>
-											)}
-										</div>
+                                        <div>
+                                            {/* ocultar toggle si ya hay paciente preseleccionado */}
+                                            {!editingId && !form.id_paciente && (
+                                                <button type="button" className="btn btn-sm btn-outline-secondary me-2" onClick={() => { setQuickMode(q => !q); if (!quickMode) setPacienteQuery(''); }}>
+                                                    {quickMode ? 'Usar select' : 'Crear paciente rápido'}
+                                                </button>
+                                            )}
+                                        </div>
 									</div>
 
-									{editingId ? (
-										// edición: mostrar paciente como etiqueta readonly
-										<div className="mb-3">
-											<label className="form-label">Paciente</label>
-											<div className="form-control-plaintext">{editingPacienteLabel || (form.id_paciente ? `Paciente #${form.id_paciente}` : '—')}</div>
-										</div>
-									) : (!quickMode && (
+							{editingId ? (
+								// edición: mostrar paciente como etiqueta readonly
+								<div className="mb-3">
+									<label className="form-label">Paciente</label>
+									<div className="form-control-plaintext">{editingPacienteLabel || (form.id_paciente ? `Paciente #${form.id_paciente}` : '—')}</div>
+								</div>
+							) : form.id_paciente ? (
+								// preseleccionado desde ficha: mostrar como readonly
+								<div className="mb-3">
+									<label className="form-label">Paciente</label>
+									<div className="form-control-plaintext">{editingPacienteLabel || (form.id_paciente ? `Paciente #${form.id_paciente}` : '—')}</div>
+								</div>
+							) : (!quickMode && (
 										<div className="mb-3">
 											<label className="form-label">Buscar paciente por nombre o DUI</label>
 											<input className="form-control mb-2" value={pacienteQuery} onChange={e => setPacienteQuery(e.target.value)} placeholder="Buscar..." />
@@ -761,7 +840,7 @@ export default function Citas() {
 									)}
 									<div className="mb-3">
 										<label className="form-label">Fecha</label>
-										<input type="date" className="form-control" value={form.fecha_cita} min={svMinDate || undefined} onChange={e => setForm({ ...form, fecha_cita: e.target.value })} />
+										<input ref={fechaInputRef} type="date" className="form-control" value={form.fecha_cita} min={svMinDate || undefined} onChange={e => setForm({ ...form, fecha_cita: e.target.value })} />
 									</div>
 									<div className="mb-3">
 										<label className="form-label">Hora</label>
@@ -807,7 +886,7 @@ export default function Citas() {
 										<textarea className="form-control" value={form.observaciones} onChange={e => setForm({ ...form, observaciones: e.target.value })} />
 									</div>
 
-									{!editingId && (
+									{!editingId && !form.id_paciente && (
 										<div className="mb-3">
 											<label className="form-label">Estado</label>
 											<select className="form-select" value={form.estado || '1'} onChange={e => setForm({ ...form, estado: e.target.value })}>
