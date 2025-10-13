@@ -10,6 +10,7 @@ import Inventario from "./Inventario/Inventario";
 import Producto from "./Inventario/Producto";
 import Administrador from "./components/Administrador";
 import Recuperar from "./components/Recuperar";
+import Citas from "./Citas/Citas";
 import './App.css'
 
 function App() {
@@ -68,6 +69,7 @@ function InnerApp() {
           <Route path="/inventario" element={<Inventario />} />
           <Route path="/fichaPaciente" element={<FichaPaciente />} />
           <Route path="/producto" element={<Producto />} />
+          <Route path="/citas" element={<Citas />} />
         </Route>
         
         
