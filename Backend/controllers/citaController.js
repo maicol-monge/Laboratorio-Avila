@@ -20,6 +20,17 @@ exports.getCitaById = (req, res) => {
 	});
 };
 
+// Endpoint para comprobar disponibilidad de un horario (fecha + hora)
+exports.checkDisponibilidad = (req, res) => {
+	const { fecha_cita, hora_cita } = req.body;
+	if (!fecha_cita || !hora_cita) return res.status(400).json({ message: 'fecha_cita y hora_cita son requeridos' });
+
+	isHorarioDisponible({ fecha_cita, hora_cita }, null, (err, disponible) => {
+		if (err) return res.status(500).json({ message: 'Error al validar horario', error: err });
+		return res.status(200).json({ available: disponible });
+	});
+};
+
 // Helper: validar disponibilidad de horario (no debe existir otra cita activa en mismo rango)
 // Asumiremos que citas se guardan con fecha_cita y hora_cita como DATETIME; para simplicidad validamos exact match
 function isHorarioDisponible(fechaHora, excludeId, callback) {

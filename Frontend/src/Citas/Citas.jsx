@@ -10,7 +10,7 @@ export default function Citas() {
 	const [pacientes, setPacientes] = useState([]);
 	const [pacienteQuery, setPacienteQuery] = useState('');
 	const [pacientesError, setPacientesError] = useState(null);
-	const [quickForm, setQuickForm] = useState({ nombre: '', apellido: '', sexo: 'M', fecha_nacimiento: '', edad: '', telefono: '' });
+	const [quickForm, setQuickForm] = useState({ nombre: '', apellido: '', sexo: 'M', fecha_nacimiento: '', edad: '', telefono: '', dui: '' });
 	const [creatingQuick, setCreatingQuick] = useState(false);
 	const [quickMode, setQuickMode] = useState(false);
 
@@ -25,7 +25,26 @@ export default function Citas() {
 	const api = axios.create({ baseURL: API_BASE, headers: { Authorization: token ? `Bearer ${token}` : '' } });
 
 	const [editingId, setEditingId] = useState(null);
+	const [editingPacienteLabel, setEditingPacienteLabel] = useState('');
+
+	// filtros: fecha inicio, fecha fin, estado
+	const getYMD = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+	const todayYMD = getYMD(new Date());
+	const weekYMD = getYMD(new Date(Date.now() + 7 * 24 * 3600 * 1000));
+	const [filterStartDate, setFilterStartDate] = useState(todayYMD);
+	const [filterEndDate, setFilterEndDate] = useState(weekYMD);
+	const [filterEstado, setFilterEstado] = useState('1'); // por defecto 1 - Pendiente
+
 	const navigate = useNavigate();
+
+	// Pagination state (similar behaviour to Inventario.jsx)
+	const [currentPage, setCurrentPage] = useState(1);
+	const perPage = 5;
+
+	// Reset to first page when filters or data change
+	useEffect(() => {
+		setCurrentPage(1);
+	}, [filterStartDate, filterEndDate, filterEstado, citas]);
 
 	// Helper to consistently render only the time portion as HH:MM
 	function formatHora(hora) {
@@ -57,6 +76,71 @@ export default function Citas() {
 		}
 	}
 
+	// Helpers reused from Pacientes.jsx: format phone/dui and validate quick patient form
+	function formatTelefonoInput(value) {
+		return value.replace(/\D/g, '').slice(0, 8).replace(/(\d{4})(\d{0,4})/, '$1-$2');
+	}
+
+	function formatDuiInput(value) {
+		return value.replace(/\D/g, '').slice(0, 9).replace(/(\d{8})(\d{0,1})/, '$1-$2');
+	}
+
+	function normalizeFechaToISO(val) {
+		if (!val) return null;
+		// accept DD/MM/YYYY or YYYY-MM-DD
+		if (val.includes('/')) {
+			const parts = val.split('/');
+			if (parts.length === 3) {
+				const [d, m, y] = parts;
+				return `${y.padStart(4,'0')}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+			}
+		}
+		return val;
+	}
+
+	function validateQuickBeforeCreate() {
+		// same rules as Pacientes.validarAntesDeEnviar
+		if (!quickForm.nombre || !quickForm.apellido) return 'Nombre y Apellido son obligatorios.';
+		if (!quickForm.sexo || !/^[MFOU]$/.test(String(quickForm.sexo).toUpperCase())) return 'Seleccione el sexo del paciente.';
+		const fn = normalizeFechaToISO(quickForm.fecha_nacimiento);
+		// si hay fecha, validar que no sea futura (solo permitir hoy o pasado)
+		if (fn) {
+			const fnDate = (fn.split && fn.split('T')[0]) || fn;
+			const today = new Date();
+			const todayYMD = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+			if (fnDate > todayYMD) return 'La fecha de nacimiento no puede ser futura.';
+		}
+		if (!fn && (quickForm.edad === '' || quickForm.edad === null || typeof quickForm.edad === 'undefined')) return 'Ingrese Fecha de Nacimiento o Edad.';
+		if (quickForm.dui && !/^\d{8}-\d{1}$/.test(quickForm.dui)) return 'Formato de DUI inválido. Debe ser ########-#.';
+		if (quickForm.telefono && !/^\d{4}-\d{4}$/.test(quickForm.telefono)) return 'Teléfono con formato inválido. Debe ser ####-####.';
+		return null;
+	}
+
+	// calcular edad local para quickForm (similar a Pacientes.jsx)
+	const quickEdadLocal = (() => {
+		if (!quickForm) return null;
+		if (quickForm.fecha_nacimiento) {
+			try {
+				const iso = normalizeFechaToISO(quickForm.fecha_nacimiento);
+				if (!iso) return null;
+				const f = new Date(iso);
+				if (isNaN(f.getTime())) return null;
+				const hoy = new Date();
+				let edad = hoy.getFullYear() - f.getFullYear();
+				const mm = hoy.getMonth() - f.getMonth();
+				if (mm < 0 || (mm === 0 && hoy.getDate() < f.getDate())) edad--;
+				return edad;
+			} catch (e) {
+				return null;
+			}
+		}
+		if (quickForm.edad !== '' && quickForm.edad !== null && typeof quickForm.edad !== 'undefined') {
+			const n = Number(quickForm.edad);
+			if (Number.isFinite(n)) return n;
+		}
+		return null;
+	})();
+
 	useEffect(() => {
 		fetchCitas();
 	}, []);
@@ -82,6 +166,36 @@ export default function Citas() {
 			.finally(() => setLoading(false));
 	}
 
+	// Computed filtered list using fecha and estado
+	const filteredCitas = (Array.isArray(citas) ? citas : []).filter(c => {
+		try {
+			// extraer fecha YYYY-MM-DD de c.fecha_cita
+			let dateStr = '';
+			if (c && c.fecha_cita) {
+				if (typeof c.fecha_cita === 'string') {
+					const m = c.fecha_cita.match(/(\d{4}-\d{2}-\d{2})/);
+					dateStr = m ? m[1] : c.fecha_cita.split('T')[0] || '';
+				} else {
+					const d = new Date(c.fecha_cita);
+					if (!isNaN(d.getTime())) dateStr = getYMD(d);
+				}
+			}
+			if (!dateStr) return false;
+			if (filterStartDate && dateStr < filterStartDate) return false;
+			if (filterEndDate && dateStr > filterEndDate) return false;
+			if (filterEstado && String(filterEstado) !== '') {
+				return String(c.estado) === String(filterEstado);
+			}
+			return true;
+		} catch (e) {
+			return false;
+		}
+	});
+
+	// Pagination derived values
+	const totalPages = Math.max(1, Math.ceil(filteredCitas.length / perPage));
+	const currentData = filteredCitas.slice((currentPage - 1) * perPage, currentPage * perPage);
+
 	// Cargar pacientes (para el select)
 	async function fetchPacientes() {
 		setPacientesError(null);
@@ -100,6 +214,7 @@ export default function Citas() {
 
 	async function openNew() {
 		setForm({ id_paciente: '', fecha_cita: '', hora_cita: '', observaciones: '' });
+		setEditingPacienteLabel('');
 		// intentar cargar pacientes antes de abrir el modal para mostrar errores si los hay
 		await fetchPacientes();
 		// calcular fecha/hora mínima en zona El Salvador (UTC-6)
@@ -122,27 +237,34 @@ export default function Citas() {
 	}
 
 	function openEdit(c) {
+		console.debug('openEdit called for cita:', c);
 		// preparar datos para editar: normalizar fecha y hora a inputs
 		const pad = (n) => String(n).padStart(2, '0');
 		let fecha = '';
 		let hora = '';
 		if (c.fecha_cita) {
-			if (typeof c.fecha_cita === 'string') fecha = c.fecha_cita.split('T')[0];
-			else {
-				const d = new Date(c.fecha_cita);
-				fecha = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-			}
+				if (typeof c.fecha_cita === 'string') {
+					// soportar 'YYYY-MM-DD', 'YYYY-MM-DDTHH:MM:SS' y 'YYYY-MM-DD HH:MM:SS'
+					const m = c.fecha_cita.match(/(\d{4}-\d{2}-\d{2})/);
+					fecha = m ? m[1] : '';
+				} else {
+					const d = new Date(c.fecha_cita);
+					if (!isNaN(d.getTime())) fecha = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+				}
 		}
 		if (c.hora_cita) {
-			if (typeof c.hora_cita === 'string') {
-				const t = c.hora_cita.split('T').pop();
-				hora = t ? t.split('.')[0].slice(0,5) : c.hora_cita.slice(0,5);
-			} else {
-				const dt = new Date(c.hora_cita);
-				hora = `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
-			}
+				if (typeof c.hora_cita === 'string') {
+					// extraer primer HH:MM encontrado (soporta 'HH:MM:SS' o datetime con T/space)
+					const mh = c.hora_cita.match(/(\d{2}:\d{2})(?::\d{2})?/);
+					hora = mh ? mh[1] : '';
+				} else {
+					const dt = new Date(c.hora_cita);
+					if (!isNaN(dt.getTime())) hora = `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+				}
 		}
 		setForm({ id_paciente: c.id_paciente || '', fecha_cita: fecha, hora_cita: hora, observaciones: c.observaciones || '', estado: c.estado || '1' });
+		console.debug('Parsed fecha/hora for edit:', { fecha, hora });
+		setEditingPacienteLabel(((c.nombre || '') + ' ' + (c.apellido || '')).trim());
 		if (hora) {
 			const [hh, mm] = hora.split(':');
 			setHoraH(hh);
@@ -152,6 +274,8 @@ export default function Citas() {
 			setHoraM('');
 		}
 		setEditingId(c.id_cita);
+		// desactivar modo quick si estaba activo
+		setQuickMode(false);
 		// calcular mínimos en SV por si edita hoy
 		const now = new Date();
 		const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
@@ -171,21 +295,42 @@ export default function Citas() {
 			let pacienteId = form.id_paciente || null;
 			// Si quickMode está activo, crear paciente primero
 			if (quickMode) {
+				// Antes de crear paciente rapido, comprobar que la fecha/hora solicitada está disponible
 				setCreatingQuick(true);
-				const body = {
-					nombre: quickForm.nombre,
-					apellido: quickForm.apellido,
-					sexo: quickForm.sexo,
-					telefono: quickForm.telefono,
-					fecha_nacimiento: quickForm.fecha_nacimiento || null,
-				};
-				if (!body.fecha_nacimiento && quickForm.edad) body.edad = Number(quickForm.edad);
-				const res = await api.post('/api/pacientes', body);
-				pacienteId = res.data?.id_paciente || res.data?.insertId || null;
-				setCreatingQuick(false);
-				// recargar pacientes y seleccionar
-				await fetchPacientes();
-				if (pacienteId) setForm(f => ({ ...f, id_paciente: pacienteId }));
+				try {
+					// validate quick patient fields first
+					const vErr = validateQuickBeforeCreate();
+					if (vErr) throw new Error(vErr);
+					if (!form.fecha_cita || !form.hora_cita) throw new Error('Debe indicar fecha y hora antes de crear el paciente');
+					// Normalizar hora a HH:MM:SS si es necesario
+					const horaToCheck = form.hora_cita.length === 5 ? form.hora_cita + ':00' : form.hora_cita;
+					// Normalizar fecha quickForm a ISO si usuario la ingresó en formato DD/MM/YYYY
+					const quickFechaISO = normalizeFechaToISO(quickForm.fecha_nacimiento) || quickForm.fecha_nacimiento || null;
+					const checkRes = await api.post('/api/citas/check', { fecha_cita: form.fecha_cita, hora_cita: horaToCheck });
+					if (!checkRes.data || checkRes.data.available !== true) {
+						setCreatingQuick(false);
+						throw new Error('Horario no disponible, no se creó el paciente');
+					}
+
+					// Si está disponible, crear paciente y continuar
+					const body = {
+						nombre: quickForm.nombre,
+						apellido: quickForm.apellido,
+						sexo: quickForm.sexo,
+						telefono: quickForm.telefono,
+						fecha_nacimiento: quickFechaISO,
+					};
+					if (!body.fecha_nacimiento && quickForm.edad) body.edad = Number(quickForm.edad);
+					const res = await api.post('/api/pacientes', body);
+					pacienteId = res.data?.id_paciente || res.data?.insertId || null;
+					setCreatingQuick(false);
+					// recargar pacientes y seleccionar
+					await fetchPacientes();
+					if (pacienteId) setForm(f => ({ ...f, id_paciente: pacienteId }));
+				} catch (err) {
+					setCreatingQuick(false);
+					throw err; // bubble up to outer catch so user sees error
+				}
 			}
 
 			const payload = { ...form, id_paciente: pacienteId };
@@ -287,7 +432,7 @@ export default function Citas() {
 				const newId = res.data?.id_paciente || res.data?.insertId || null;
 				if (newId) setForm(f => ({ ...f, id_paciente: newId }));
 				// si no devuelve id, buscaremos por nombre/apellido e intentaremos seleccionar el más reciente
-				setQuickForm({ nombre: '', apellido: '', sexo: 'M', fecha_nacimiento: '', edad: '', telefono: '' });
+				setQuickForm({ nombre: '', apellido: '', sexo: 'M', fecha_nacimiento: '', edad: '', telefono: '', dui: '' });
 				alert('Paciente creado y seleccionado');
 			})
 			.catch(err => {
@@ -302,6 +447,21 @@ export default function Citas() {
 		api.delete(`/api/citas/${id}`)
 			.then(() => fetchCitas())
 			.catch(err => alert(err.response?.data?.message || 'Error'));
+	}
+
+	async function handleFinalizar(id) {
+		if (!confirm('¿Marcar esta cita como finalizada? Esta acción no se puede deshacer.')) return;
+		try {
+			setLoading(true);
+			// Enviar solo el campo estado; el backend actualiza la cita
+			await api.put(`/api/citas/${id}`, { estado: '2' });
+			fetchCitas();
+		} catch (err) {
+			console.error(err);
+			alert(err.response?.data?.message || err.message || 'Error al finalizar la cita');
+		} finally {
+			setLoading(false);
+		}
 	}
 
 	return (
@@ -319,6 +479,33 @@ export default function Citas() {
 
 			<div className="card mb-4">
 				<div className="card-header">Lista de Pacientes</div>
+				<div className="card-body py-2">
+					<div className="d-flex gap-2 align-items-center mb-3">
+						<div>
+							<label className="form-label small mb-0">Desde</label>
+							<input type="date" className="form-control" value={filterStartDate} onChange={e => setFilterStartDate(e.target.value)} />
+						</div>
+						<div>
+							<label className="form-label small mb-0">Hasta</label>
+							<input type="date" className="form-control" value={filterEndDate} onChange={e => setFilterEndDate(e.target.value)} />
+						</div>
+						<div>
+							<label className="form-label small mb-0">Estado</label>
+							<select className="form-select" value={filterEstado} onChange={e => setFilterEstado(e.target.value)}>
+								<option value="">-- Todos --</option>
+								<option value="1">1 - Pendiente</option>
+								<option value="2">2 - Finalizada</option>
+								<option value="0">0 - Cancelada</option>
+							</select>
+						</div>
+						<div className="d-flex flex-column justify-content-end">
+							<button className="btn btn-sm btn-primary" onClick={() => { fetchCitas(); }}>Aplicar</button>
+						</div>
+						<div className="d-flex flex-column justify-content-end">
+							<button className="btn btn-sm btn-outline-secondary" onClick={() => { setFilterStartDate(todayYMD); setFilterEndDate(weekYMD); setFilterEstado('1'); }}>Limpiar</button>
+						</div>
+					</div>
+				</div>
 				<div className="card-body p-0">
 					<table className="table mb-0">
 						<thead>
@@ -334,10 +521,10 @@ export default function Citas() {
 							<tbody>
 								{loading ? (
 									<tr><td colSpan={6}>Cargando...</td></tr>
-								) : (!Array.isArray(citas) || citas.length === 0) ? (
+								) : (!Array.isArray(currentData) || currentData.length === 0) ? (
 									<tr><td colSpan={6}>No hay citas</td></tr>
 								) : (
-									citas.map(c => (
+									currentData.map(c => (
 										<tr key={c.id_cita}>
 											<td>{c.id_cita}</td>
 											<td>{c.nombre ? `${c.nombre} ${c.apellido}` : '-'}</td>
@@ -356,12 +543,24 @@ export default function Citas() {
 													>
 														<i className="bi bi-file-earmark-person"></i>
 													</button>
-													<button className="btn btn-sm btn-primary me-2" onClick={() => openEdit(c)} title="Editar">
-														<i className="bi bi-pencil"></i>
-													</button>
-													<button className="btn btn-sm btn-danger" onClick={() => handleDelete(c.id_cita)} title="Eliminar">
-														<i className="bi bi-trash"></i>
-													</button>
+													{c.estado !== '2' && (
+														<>
+															<button className="btn btn-sm btn-success me-2" onClick={() => handleFinalizar(c.id_cita)} title="Finalizar">
+																<i className="bi bi-check2-square"></i>
+															</button>
+															<button className="btn btn-sm btn-primary me-2" onClick={() => openEdit(c)} title="Editar">
+																<i className="bi bi-pencil"></i>
+															</button>
+															<button className="btn btn-sm btn-danger" onClick={() => handleDelete(c.id_cita)} title="Eliminar">
+																<i className="bi bi-trash"></i>
+															</button>
+														</>
+													)}
+													{c.estado === '2' && (
+														<button className="btn btn-sm btn-outline-secondary" title="Finalizada" disabled>
+															<i className="bi bi-check2-all"></i>
+														</button>
+													)}
 												</div>
 											</td>
 										</tr>
@@ -370,6 +569,39 @@ export default function Citas() {
 							</tbody>
 					</table>
 				</div>
+
+						<nav>
+							<ul className="pagination pagination-sm justify-content-end m-3">
+								<li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
+									<button className="page-link" onClick={() => setCurrentPage(currentPage - 1)}>Anterior</button>
+								</li>
+								{Array.from({ length: totalPages }, (_, i) => (
+									<li key={i + 1} className={`page-item ${currentPage === i + 1 ? 'active' : ''}`}>
+										<button className="page-link" onClick={() => setCurrentPage(i + 1)}>{i + 1}</button>
+									</li>
+								))}
+								<li className={`page-item ${currentPage === totalPages ? 'disabled' : ''}`}>
+									<button className="page-link" onClick={() => setCurrentPage(currentPage + 1)}>Siguiente</button>
+								</li>
+							</ul>
+						</nav>
+
+						{/* Citas hoy card (count) */}
+						<div className="mt-3">
+							<div className="card" style={{ width: 220 }}>
+								<div className="card-body d-flex align-items-center">
+									<div className="me-3">
+										<i className="bi bi-calendar-check" style={{ fontSize: 28 }}></i>
+									</div>
+									<div>
+										<div className="small text-muted">Citas hoy</div>
+										<div className="h4 mb-0">{(Array.isArray(citas) ? citas : []).filter(x => {
+											try { return x.fecha_cita && new Date(x.fecha_cita).toLocaleDateString() === new Date().toLocaleDateString() && x.estado === '1'; } catch (e) { return false; }
+										}).length}</div>
+									</div>
+								</div>
+							</div>
+						</div>
 			</div>
 
 			{/* Modal (simplificado) */}
@@ -389,13 +621,21 @@ export default function Citas() {
 											<div className="small text-muted">Seleccione existente o cree uno rápido</div>
 										</div>
 										<div>
-											<button type="button" className="btn btn-sm btn-outline-secondary me-2" onClick={() => { setQuickMode(q => !q); if (!quickMode) setPacienteQuery(''); }}>
-												{quickMode ? 'Usar select' : 'Crear paciente rápido'}
-											</button>
+											{!editingId && (
+												<button type="button" className="btn btn-sm btn-outline-secondary me-2" onClick={() => { setQuickMode(q => !q); if (!quickMode) setPacienteQuery(''); }}>
+													{quickMode ? 'Usar select' : 'Crear paciente rápido'}
+												</button>
+											)}
 										</div>
 									</div>
 
-									{!quickMode && (
+									{editingId ? (
+										// edición: mostrar paciente como etiqueta readonly
+										<div className="mb-3">
+											<label className="form-label">Paciente</label>
+											<div className="form-control-plaintext">{editingPacienteLabel || (form.id_paciente ? `Paciente #${form.id_paciente}` : '—')}</div>
+										</div>
+									) : (!quickMode && (
 										<div className="mb-3">
 											<label className="form-label">Buscar paciente por nombre o DUI</label>
 											<input className="form-control mb-2" value={pacienteQuery} onChange={e => setPacienteQuery(e.target.value)} placeholder="Buscar..." />
@@ -422,34 +662,99 @@ export default function Citas() {
 												</select>
 											)}
 										</div>
-									)}
+									))}
 
-									{quickMode && (
+									{!editingId && quickMode && (
 										<div className="mb-3">
 											<h6>Crear paciente rápido</h6>
-											{/* quick form (reutilizado) */}
 											<div className="row">
 												<div className="col-md-6 mb-2">
-													<input className="form-control" placeholder="Nombre" value={quickForm.nombre} onChange={e => setQuickForm({ ...quickForm, nombre: e.target.value })} required />
+													<input
+														className="form-control"
+														placeholder="Nombre"
+														value={quickForm.nombre}
+														onChange={e => setQuickForm({ ...quickForm, nombre: e.target.value })}
+														required
+													/>
 												</div>
 												<div className="col-md-6 mb-2">
-													<input className="form-control" placeholder="Apellido" value={quickForm.apellido} onChange={e => setQuickForm({ ...quickForm, apellido: e.target.value })} required />
+													<input
+														className="form-control"
+														placeholder="Apellido"
+														value={quickForm.apellido}
+														onChange={e => setQuickForm({ ...quickForm, apellido: e.target.value })}
+														required
+													/>
 												</div>
-												<div className="col-md-4 mb-2">
-													<select className="form-select" value={quickForm.sexo} onChange={e => setQuickForm({ ...quickForm, sexo: e.target.value })}>
-														<option value="M">M</option>
-														<option value="F">F</option>
-														<option value="U">U</option>
+												<div className="col-md-6 mb-2">
+													<select
+														className="form-select"
+														value={quickForm.sexo}
+														onChange={e => setQuickForm({ ...quickForm, sexo: e.target.value })}
+													>
+														<option value="M">Masculino</option>
+														<option value="F">Femenino</option>
 													</select>
 												</div>
-												<div className="col-md-4 mb-2">
-													<input className="form-control" placeholder="Fecha nac (YYYY-MM-DD)" value={quickForm.fecha_nacimiento} onChange={e => setQuickForm({ ...quickForm, fecha_nacimiento: e.target.value })} />
-												</div>
-												<div className="col-md-4 mb-2">
-													<input className="form-control" placeholder="Edad" value={quickForm.edad} onChange={e => setQuickForm({ ...quickForm, edad: e.target.value })} />
-												</div>
 												<div className="col-md-6 mb-2">
-													<input className="form-control" placeholder="Teléfono" value={quickForm.telefono} onChange={e => setQuickForm({ ...quickForm, telefono: e.target.value })} />
+													<label className="form-label visually-hidden">Fecha de Nacimiento</label>
+													<input
+														type="date"
+														className="form-control"
+														value={quickForm.fecha_nacimiento}
+														max={new Date().toISOString().slice(0,10)}
+														onChange={e => {
+															setQuickForm({ ...quickForm, fecha_nacimiento: e.target.value });
+															// limpiar edad manual cuando se selecciona fecha
+															if (e.target.value) setQuickForm(q => ({ ...q, edad: '' }));
+														}}
+													/>
+												</div>
+												{!quickForm.fecha_nacimiento && (
+													<div className="col-md-6 mb-2">
+														<input
+															className="form-control"
+															placeholder="Edad"
+															value={quickForm.edad}
+															onChange={e => setQuickForm({ ...quickForm, edad: e.target.value })}
+														/>
+													</div>
+												)}
+
+												{quickForm.fecha_nacimiento && quickEdadLocal !== null && quickEdadLocal < 18 && (
+													<div className="col-md-6 mb-2">
+														<input type="number" className="form-control" value={quickEdadLocal} readOnly />
+													</div>
+												)}
+                                                
+												{(quickEdadLocal !== null && quickEdadLocal >= 18) || (!quickForm.fecha_nacimiento && quickForm.edad !== '' && Number(quickForm.edad) >= 18) ? (
+													<div className="col-md-6 mb-2">
+														<input
+															name="dui"
+															className="form-control"
+															placeholder="DUI (########-#)"
+															value={quickForm.dui}
+															onChange={e => setQuickForm({ ...quickForm, dui: formatDuiInput(e.target.value) })}
+														/>
+													</div>
+												) : (
+													<div className="col-md-6 mb-2">
+														<input
+															name="dui"
+															className="form-control"
+															placeholder="DUI (opcional)"
+															value={quickForm.dui}
+															onChange={e => setQuickForm({ ...quickForm, dui: formatDuiInput(e.target.value) })}
+														/>
+													</div>
+												)}
+												<div className="col-md-6 mb-2">
+													<input
+														className="form-control"
+														placeholder="Teléfono (####-####)"
+														value={quickForm.telefono}
+														onChange={e => setQuickForm({ ...quickForm, telefono: formatTelefonoInput(e.target.value) })}
+													/>
 												</div>
 											</div>
 										</div>
@@ -502,14 +807,16 @@ export default function Citas() {
 										<textarea className="form-control" value={form.observaciones} onChange={e => setForm({ ...form, observaciones: e.target.value })} />
 									</div>
 
-									<div className="mb-3">
-										<label className="form-label">Estado</label>
-										<select className="form-select" value={form.estado || '1'} onChange={e => setForm({ ...form, estado: e.target.value })}>
-											<option value="1">1 - Pendiente</option>
-											<option value="2">2 - Finalizada</option>
-											<option value="0">0 - Cancelada</option>
-										</select>
-									</div>
+									{!editingId && (
+										<div className="mb-3">
+											<label className="form-label">Estado</label>
+											<select className="form-select" value={form.estado || '1'} onChange={e => setForm({ ...form, estado: e.target.value })}>
+												<option value="1">1 - Pendiente</option>
+												<option value="2">2 - Finalizada</option>
+												<option value="0">0 - Cancelada</option>
+											</select>
+										</div>
+									)}
 								</div>
 								<div className="modal-footer">
 									<button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cerrar</button>
