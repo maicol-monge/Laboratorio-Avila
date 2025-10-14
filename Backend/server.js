@@ -6,6 +6,7 @@ const db = require("./config/db");
 const userRoutes = require("./routes/userRoutes");
 const pacienteRoutes = require("./routes/pacienteRoutes");
 const inventarioRoutes = require("./routes/inventarioRoutes");
+const citaRoutes = require("./routes/citaRoutes");
 
 const app = express(); //Instancia del servidor
 app.use(cors()); //Evitar errores al consumir en React
@@ -23,6 +24,7 @@ db.connect((err) => {
 app.use("/api/users", userRoutes);
 app.use("/api/pacientes", pacienteRoutes);
 app.use("/api/inventario", inventarioRoutes);
+app.use("/api/citas", citaRoutes);
 
 // Iniciar servidor
 const PORT = process.env.PORT || 5000;
