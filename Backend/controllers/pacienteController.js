@@ -222,5 +222,53 @@ exports.deletePaciente = (req, res) => {
 	});
 };
 
+// Obtener exámenes realizados por paciente
+exports.getExamenesByPaciente = (req, res) => {
+	const { id } = req.params;
+	// Unimos examen_realizado con examen para obtener título y diagnóstico
+	const query = `SELECT er.id_examen_realizado, er.id_examen, er.id_paciente, er.diagnostico, er.estado AS estado_realizado, er.created_at, er.updated_at, e.titulo_examen, e.descripcion AS examen_descripcion
+	FROM examen_realizado er
+	LEFT JOIN examen e ON er.id_examen = e.id_examen
+	WHERE er.id_paciente = ? AND er.estado <> '0' ORDER BY er.created_at DESC`;
+	db.query(query, [id], (err, results) => {
+		if (err) return res.status(500).json({ message: 'Error al recuperar examenes realizados', error: err });
+		// Mapear a formato simple
+		const mapped = results.map(r => ({
+			id_examen_realizado: r.id_examen_realizado,
+			id_examen: r.id_examen,
+			id_paciente: r.id_paciente,
+			titulo_examen: r.titulo_examen,
+			examen_descripcion: r.examen_descripcion,
+			diagnostico: r.diagnostico,
+			estado: r.estado_realizado,
+			created_at: r.created_at,
+			updated_at: r.updated_at
+		}));
+		return res.status(200).json(mapped);
+	});
+};
+
+// Obtener citas por paciente
+exports.getCitasByPaciente = (req, res) => {
+	const { id } = req.params;
+	// La tabla cita tiene fecha_cita y hora_cita como DATETIME; devolver ambos
+	const query = `SELECT id_cita, id_paciente, fecha_cita, hora_cita, observaciones, estado, created_at, updated_at FROM cita WHERE id_paciente = ? AND estado <> '0' ORDER BY fecha_cita DESC`;
+	db.query(query, [id], (err, results) => {
+		if (err) return res.status(500).json({ message: 'Error al recuperar citas', error: err });
+		// Mapear en formato esperado por frontend
+		const mapped = results.map(r => ({
+			id_cita: r.id_cita,
+			id_paciente: r.id_paciente,
+			fecha: r.fecha_cita, // frontend busca 'fecha' o 'fecha_cita'
+			hora: r.hora_cita, // frontend busca 'hora' o 'hora_cita'
+			observaciones: r.observaciones,
+			estado: r.estado,
+			created_at: r.created_at,
+			updated_at: r.updated_at
+		}));
+		return res.status(200).json(mapped);
+	});
+};
+
 
 

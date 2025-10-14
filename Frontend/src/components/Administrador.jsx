@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 
 function Administrador() {
   const [currentPassword, setCurrentPassword] = useState('');
+  const [currentPasswordEmail, setCurrentPasswordEmail] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [confirmEmail, setConfirmEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showCurrent, setShowCurrent] = useState(false);
@@ -12,6 +15,12 @@ function Administrador() {
   const [message, setMessage] = useState(null);
   const [errors, setErrors] = useState({});
   const navigate = useNavigate();
+
+  // read stored user once at component scope so JSX can access it
+  const storedUser = (() => {
+    try { return JSON.parse(localStorage.getItem('user') || 'null'); } catch { return null; }
+  })();
+  const mustChange = storedUser?.requiereCambioPassword || storedUser?.requiere_cambio_password;
 
   // Validaciones en tiempo real
   const validateField = (name, value) => {
@@ -121,6 +130,46 @@ function Administrador() {
     }
   };
 
+  // Handler to change email (requires current password)
+  const handleEmailChange = async () => {
+    setMessage(null);
+    const finalErrors = {};
+  if (!newEmail) finalErrors.newEmail = 'El nuevo correo es requerido';
+  if (!confirmEmail) finalErrors.confirmEmail = 'Confirma el nuevo correo';
+  if (newEmail && confirmEmail && newEmail !== confirmEmail) finalErrors.confirmEmail = 'Los correos no coinciden';
+  if (!currentPasswordEmail) finalErrors.currentPasswordEmail = 'La contraseña actual es requerida para validar';
+    if (Object.keys(finalErrors).length > 0) { setErrors(finalErrors); return; }
+
+    const token = localStorage.getItem('token');
+    if (!token) return setMessage({ type: 'danger', text: 'No autorizado' });
+
+    setLoading(true);
+    try {
+      const res = await fetch('http://localhost:5000/api/users/change-email', {
+        method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ currentPassword: currentPasswordEmail, newEmail })
+      });
+      const data = await (async () => { try { return await res.json(); } catch { return null; } })();
+      if (!res.ok) {
+        setMessage({ type: 'danger', text: data?.message || 'Error al cambiar correo' });
+      } else {
+        setMessage({ type: 'success', text: data?.message || 'Correo actualizado' });
+        // actualizar email en localStorage user si existe
+        try {
+          const u = JSON.parse(localStorage.getItem('user') || 'null');
+          if (u) { u.correo = newEmail; localStorage.setItem('user', JSON.stringify(u)); }
+        } catch {}
+        // limpiar campos (solo del formulario de email)
+        setNewEmail(''); setConfirmEmail(''); setCurrentPasswordEmail(''); setErrors({});
+      }
+    } catch (err) {
+      setMessage({ type: 'danger', text: err.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div style={{ marginLeft: "250px", minHeight: "100vh", backgroundColor: "#F0F0F0", padding: "20px" }}>
       <div className="d-flex justify-content-between align-items-center mb-4">
@@ -134,6 +183,44 @@ function Administrador() {
         {message && <div className={`alert alert-${message.type}`}>{message.text}</div>}
 
         <div className="row">
+          {/** Email change: shown above password change; hidden when user must change password after temporary recovery */}
+          {!mustChange && (
+          <div className="col-md-6 mb-3">
+            <div className="card shadow-sm">
+              <div className="card-header bg-white">
+                <h5 className="card-title mb-0">Cambiar correo electrónico</h5>
+              </div>
+              <div className="card-body">
+                <form onSubmit={async (e) => { e.preventDefault(); await handleEmailChange(); }}>
+                  <div className="mb-3">
+                    <label className="form-label">Nuevo correo</label>
+                    <input type="email" className={`form-control ${errors.newEmail ? 'is-invalid' : ''}`} value={newEmail} onChange={(e) => { setNewEmail(e.target.value); if (errors.newEmail) setErrors(prev=>{ const n = {...prev}; delete n.newEmail; return n; }); }} required />
+                    {errors.newEmail && <div className="invalid-feedback">{errors.newEmail}</div>}
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Confirmar nuevo correo</label>
+                    <input type="email" className={`form-control ${errors.confirmEmail ? 'is-invalid' : ''}`} value={confirmEmail} onChange={(e) => { setConfirmEmail(e.target.value); if (errors.confirmEmail) setErrors(prev=>{ const n = {...prev}; delete n.confirmEmail; return n; }); }} required />
+                    {errors.confirmEmail && <div className="invalid-feedback">{errors.confirmEmail}</div>}
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Contraseña actual (para validar)</label>
+                    <div className="input-group">
+                      <input type={showCurrent ? 'text' : 'password'} className={`form-control ${errors.currentPasswordEmail ? 'is-invalid' : ''}`} value={currentPasswordEmail} onChange={(e) => { setCurrentPasswordEmail(e.target.value); if (errors.currentPasswordEmail) setErrors(prev => { const n = {...prev}; delete n.currentPasswordEmail; return n; }); }} />
+                      <button type="button" className="btn btn-outline-secondary" onClick={() => setShowCurrent(s => !s)}>
+                        <i className={`bi bi-eye${showCurrent ? '-slash' : ''}`}></i>
+                      </button>
+                      {errors.currentPasswordEmail && <div className="invalid-feedback">{errors.currentPasswordEmail}</div>}
+                    </div>
+                  </div>
+
+                  <div className="d-flex justify-content-end gap-2">
+                    <button className="btn" type="submit" style={{ backgroundColor: '#00C2CC', color: '#fff' }} disabled={loading}>{loading ? 'Guardando...' : 'Cambiar correo'}</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+          )}
           <div className="col-md-6">
             <div className="card shadow-sm">
               <div className="card-header bg-white">
