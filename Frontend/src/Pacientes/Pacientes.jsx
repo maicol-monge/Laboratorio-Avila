@@ -546,7 +546,7 @@ export default function Pacientes() {
       style={{
         marginLeft: "250px",
         minHeight: "100vh",
-        backgroundColor: "#F0F0F0",
+        backgroundColor: "#f8f9fa",
         padding: "20px",
       }}
     >
@@ -563,19 +563,18 @@ export default function Pacientes() {
 
         <div className="d-flex gap-2 align-items-center">
           <input
-            type="text"
+            className="form-control"
+						style={{ width: 320 }}
             placeholder="Buscar paciente..."
-            className="form-control form-control-sm"
-            style={{ width: "260px" }}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
           <button
-            className="btn"
-            style={{ backgroundColor: "#00C2CC", color: "#fff" }}
+             className="btn btn-info text-white"
+						style={{ width: 120, height: '38px' }}
             onClick={openAdd}
           >
-            <i className="bi bi-plus-lg me-2"></i> Nuevo Paciente
+             Agregar
           </button>
         </div>
       </div>
@@ -660,7 +659,7 @@ export default function Pacientes() {
                       <div className="btn-group" role="group">
                         {/* Redirige a otra página usando window.location */}
                         <button
-                          className="btn btn-sm btn-info text-white"
+                          className="btn btn-sm btn-success me-2"
                           onClick={() =>
                             navigate("/fichaPaciente", {
                               state: { id: p.id_paciente },
@@ -672,7 +671,7 @@ export default function Pacientes() {
                         </button>
 
                         <button
-                          className="btn btn-sm btn-primary"
+                          className="btn btn-sm btn-primary me-2"
                           onClick={() => openEdit(p)}
                           title="Editar"
                         >

@@ -400,21 +400,21 @@ export default function Inventario() {
       >
         {/* Header */}
         <div className="d-flex align-items-center mb-2">
-          <h1 className="h4 mb-0">Inventario</h1>
-          <div className="ms-auto d-flex gap-2">
+          <h2 className="fw-bold" style={{ color: "#111" }}>Inventario</h2>
+          <div className="ms-auto mt-3 d-flex gap-2">
             <input
-              type="text"
-              className="form-control"
-              placeholder="Buscar"
+            className="form-control"
+						style={{ width: 320 }}
+						placeholder="Buscar"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              style={{ width: "220px" }}
             />
             <button
-              className="btn btn-info text-white fw-semibold"
+            className="btn btn-info text-white"
+						style={{ width: 120, height: '38px' }}
               onClick={handleAgregar}
             >
-              Agregar Producto
+              Agregar
             </button>
           </div>
         </div>
@@ -498,7 +498,7 @@ export default function Inventario() {
                       </td>
                       <td>
                         <button
-                          className="btn btn-sm btn-outline-success"
+                          className="btn btn-sm btn-success me-2"
                           onClick={() =>
                             navigate("/producto", {
                               state: { id: p.id_insumo },
@@ -508,13 +508,13 @@ export default function Inventario() {
                           <i className="bi bi-eye"></i>
                         </button>
                         <button
-                          className="btn btn-sm btn-outline-primary me-1"
+                          className="btn btn-sm btn-primary me-2"
                           onClick={() => handleEditar(p)}
                         >
                           <i className="bi bi-pencil"></i>
                         </button>
                         <button
-                          className="btn btn-sm btn-outline-danger"
+                          className="btn btn-sm btn-danger"
                           onClick={() => handleDelete(p.id_insumo)}
                         >
                           <i className="bi bi-trash"></i>
