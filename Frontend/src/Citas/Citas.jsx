@@ -2,8 +2,14 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useRef } from 'react';
 import axios from 'axios';
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import Swal from 'sweetalert2';
 
-export default function Citas() {
+
+
+
+export default function Citas() {	
 	const [citas, setCitas] = useState([]);
 	const [loading, setLoading] = useState(false);
 	const [showModal, setShowModal] = useState(false);
@@ -34,9 +40,9 @@ export default function Citas() {
 	const getYMD = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 	const todayYMD = getYMD(new Date());
 	const weekYMD = getYMD(new Date(Date.now() + 7 * 24 * 3600 * 1000));
-	const [filterStartDate, setFilterStartDate] = useState(todayYMD);
-	const [filterEndDate, setFilterEndDate] = useState(weekYMD);
-	const [filterEstado, setFilterEstado] = useState('1'); // por defecto 1 - Pendiente
+	const [filterStartDate, setFilterStartDate] = useState('');
+	const [filterEndDate, setFilterEndDate] = useState('');
+	const [filterEstado, setFilterEstado] = useState(''); // por defecto 1 - Pendiente
 
 	const navigate = useNavigate();
 	const location = useLocation();
@@ -160,7 +166,14 @@ export default function Citas() {
 			const todayYMD = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
 			if (fnDate > todayYMD) return 'La fecha de nacimiento no puede ser futura.';
 		}
-		if (!fn && (quickForm.edad === '' || quickForm.edad === null || typeof quickForm.edad === 'undefined')) return 'Ingrese Fecha de Nacimiento o Edad.';
+		if (!fn && (quickForm.edad === '' || quickForm.edad === null || typeof quickForm.edad === 'undefined')) {
+			return Swal.fire({
+				icon: 'warning',
+				title: 'Dato requerido',
+				text: 'Ingrese Fecha de Nacimiento o Edad.',
+				confirmButtonColor: '#17a2b8'
+			});
+		}
 		if (quickForm.dui && !/^\d{8}-\d{1}$/.test(quickForm.dui)) return 'Formato de DUI inválido. Debe ser ########-#.';
 		if (quickForm.telefono && !/^\d{4}-\d{4}$/.test(quickForm.telefono)) return 'Teléfono con formato inválido. Debe ser ####-####.';
 		return null;
@@ -380,9 +393,14 @@ export default function Citas() {
 					const quickFechaISO = normalizeFechaToISO(quickForm.fecha_nacimiento) || quickForm.fecha_nacimiento || null;
 					const checkRes = await api.post('/api/citas/check', { fecha_cita: form.fecha_cita, hora_cita: horaToCheck });
 					if (!checkRes.data || checkRes.data.available !== true) {
-						setCreatingQuick(false);
-						throw new Error('Horario no disponible, no se creó el paciente');
-					}
+    setCreatingQuick(false);
+    return Swal.fire({
+        icon: 'error',
+        title: 'Horario no disponible',
+        text: 'No se creó el paciente.',
+        confirmButtonColor: '#17a2b8'
+    });
+}
 
 					// Si está disponible, crear paciente y continuar
 					const body = {
@@ -416,7 +434,14 @@ export default function Citas() {
 				// si es hoy, validar hora >= svMinTime
 				if (fecha === svMinDate && svMinTime && payload.hora_cita) {
 					const horaNormalized = payload.hora_cita.length === 5 ? payload.hora_cita + ':00' : payload.hora_cita;
-					if (horaNormalized < svMinTime) throw new Error('No puede seleccionar una hora pasada para hoy');
+if (horaNormalized < svMinTime) {
+    return Swal.fire({
+        icon: 'error',
+        title: 'Hora inválida',
+        text: 'No puede seleccionar una hora pasada para hoy.',
+        confirmButtonColor: '#17a2b8'
+    });
+}
 				}
 			}
 
@@ -479,6 +504,23 @@ export default function Citas() {
 			setCreatingQuick(false);
 		}
 	}
+	const handleEditClick = (c) => {
+  Swal.fire({
+    title: 'Editando producto',
+    text: `Estás por editar: ${c.nombre}`,
+    icon: 'info',
+    showConfirmButton: false,
+    timer: 1500,
+    showClass: {
+      popup: 'animate__animated animate__swing'
+    },
+    hideClass: {
+      popup: 'animate__animated animate__fadeOut'
+    }
+  });
+
+  openEdit(c);
+};
 
 	// crear paciente rapido desde modal
 	function handleQuickCreate(e) {
@@ -514,70 +556,182 @@ export default function Citas() {
 			.finally(() => setCreatingQuick(false));
 	}
 
-	function handleDelete(id) {
-		if (!confirm('¿Cancelar esta cita?')) return;
-		api.delete(`/api/citas/${id}`)
-			.then(() => fetchCitas())
-			.catch(err => alert(err.response?.data?.message || 'Error'));
-	}
+function handleDelete(id) {
+  Swal.fire({
+    title: '¿Cancelar esta cita?',
+    text: 'Esta acción no se puede deshacer.',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: 'Sí, cancelar',
+    cancelButtonText: 'No',
+    confirmButtonColor: '#d33',
+    cancelButtonColor: '#6c757d',
+    showClass: {
+      popup: 'animate__animated animate__swing'
+    },
+    hideClass: {
+      popup: 'animate__animated animate__fadeOut'
+    }
+  }).then((result) => {
+    if (result.isConfirmed) {
+      api.delete(`/api/citas/${id}`)
+        .then(() => {
+          fetchCitas();
+          Swal.fire({
+            title: 'Cita cancelada',
+            icon: 'success',
+            timer: 1500,
+            showConfirmButton: false,
+            showClass: {
+              popup: 'animate__animated animate__fadeInDown'
+            },
+            hideClass: {
+              popup: 'animate__animated animate__fadeOutUp'
+            }
+          });
+        })
+        .catch(err => {
+          Swal.fire({
+            title: 'Error',
+            text: err.response?.data?.message || 'Ocurrió un error al cancelar la cita.',
+            icon: 'error',
+            confirmButtonColor: '#d33'
+          });
+        });
+    }
+  });
+}
 
-	async function handleFinalizar(id) {
-		if (!confirm('¿Marcar esta cita como finalizada? Esta acción no se puede deshacer.')) return;
-		try {
-			setLoading(true);
-			// Enviar solo el campo estado; el backend actualiza la cita
-			await api.put(`/api/citas/${id}`, { estado: '2' });
-			fetchCitas();
-		} catch (err) {
-			console.error(err);
-			alert(err.response?.data?.message || err.message || 'Error al finalizar la cita');
-		} finally {
-			setLoading(false);
-		}
-	}
+
+async function handleFinalizar(id) {
+  const result = await Swal.fire({
+    title: '¿Finalizar esta cita?',
+    text: 'Esta acción no se puede deshacer.',
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'Sí, finalizar',
+    cancelButtonText: 'Cancelar',
+    confirmButtonColor: '#0d6efd',
+    cancelButtonColor: '#6c757d',
+    showClass: {
+      popup: 'animate__animated animate__swing'
+    },
+    hideClass: {
+      popup: 'animate__animated animate__fadeOut'
+    }
+  });
+
+  if (!result.isConfirmed) return;
+
+  try {
+    setLoading(true);
+    await api.put(`/api/citas/${id}`, { estado: '2' });
+    fetchCitas();
+
+    Swal.fire({
+      title: 'Cita finalizada',
+      icon: 'success',
+      timer: 1500,
+      showConfirmButton: false,
+      showClass: {
+        popup: 'animate__animated animate__fadeInDown'
+      },
+      hideClass: {
+        popup: 'animate__animated animate__fadeOutUp'
+      }
+    });
+  } catch (err) {
+    console.error(err);
+    Swal.fire({
+      title: 'Error',
+      text: err.response?.data?.message || err.message || 'Error al finalizar la cita',
+      icon: 'error',
+      confirmButtonColor: '#d33'
+    });
+  } finally {
+    setLoading(false);
+  }
+}
 
 	return (
-		<div style={{ marginLeft: 270, padding: 24 }}>
+		<div style={{ marginLeft: 250, padding: 20, backgroundColor: "#f8f9fa" }}>
 			<div className="d-flex justify-content-between align-items-center mb-4">
 				<div>
-					<h2>Citas</h2>
+					<h2 className="fw-bold" style={{ color: "#111" }}>Citas</h2>
 					<small className="text-muted">Gestión y programación de citas</small>
 				</div>
-				<div>
-					<input className="form-control d-inline-block me-3" style={{ width: 320 }} placeholder="Buscar paciente..." />
-					<button className="btn btn-info text-white" onClick={openNew}>Nueva Cita</button>
+				<div className="d-flex align-items-center gap-2">
+					<input
+						className="form-control"
+						style={{ width: 320 }}
+						placeholder="Buscar"
+					/>
+					<button
+						className="btn btn-info text-white"
+						style={{ width: 120, height: '38px' }}
+						onClick={openNew}
+					>
+						Agregar
+					</button>
 				</div>
 			</div>
 
-			<div className="card mb-4">
-				<div className="card-header">Lista de Pacientes</div>
-				<div className="card-body py-2">
-					<div className="d-flex gap-2 align-items-center mb-3">
-						<div>
-							<label className="form-label small mb-0">Desde</label>
-							<input type="date" className="form-control" value={filterStartDate} onChange={e => setFilterStartDate(e.target.value)} />
-						</div>
-						<div>
-							<label className="form-label small mb-0">Hasta</label>
-							<input type="date" className="form-control" value={filterEndDate} onChange={e => setFilterEndDate(e.target.value)} />
-						</div>
-						<div>
-							<label className="form-label small mb-0">Estado</label>
-							<select className="form-select" value={filterEstado} onChange={e => setFilterEstado(e.target.value)}>
-								<option value="">-- Todos --</option>
-								<option value="1">1 - Pendiente</option>
-								<option value="2">2 - Finalizada</option>
-								<option value="0">0 - Cancelada</option>
-							</select>
-						</div>
-						<div className="d-flex flex-column justify-content-end">
-							<button className="btn btn-sm btn-primary" onClick={() => { fetchCitas(); }}>Aplicar</button>
-						</div>
-						<div className="d-flex flex-column justify-content-end">
-							<button className="btn btn-sm btn-outline-secondary" onClick={() => { setFilterStartDate(todayYMD); setFilterEndDate(weekYMD); setFilterEstado('1'); }}>Limpiar</button>
-						</div>
+
+			<div className="card-body py-2">
+				<div className="d-flex flex-wrap gap-3 align-items-end mb-3">
+					<div className="d-flex flex-column">
+					<label className="form-label small mb-1">Desde</label>
+					<DatePicker
+						selected={filterStartDate ? new Date(filterStartDate) : null}
+						onChange={date => setFilterStartDate(date?.toISOString().split('T')[0] || '')}
+						className="form-control form-control-sm border-info"
+						placeholderText="Seleccionar fecha"
+						dateFormat="yyyy-MM-dd"
+						isClearable
+					/>
 					</div>
+					<div className="d-flex flex-column">
+					<label className="form-label small mb-1">Hasta</label>
+					<DatePicker
+						selected={filterEndDate ? new Date(filterEndDate) : null}
+						onChange={date => setFilterEndDate(date?.toISOString().split('T')[0] || '')}
+						className="form-control form-control-sm border-info"
+						placeholderText="Seleccionar fecha"
+						dateFormat="yyyy-MM-dd"
+						isClearable
+					/>
+					</div>
+					<div>
+					<label className="form-label small mb-1">Estado</label>
+					<select
+						className="form-select form-select-sm border-info"
+						value={filterEstado}
+						onChange={e => setFilterEstado(e.target.value)}
+					>
+						<option value="">-- Todos --</option>
+						<option value="1">1 - Pendiente</option>
+						<option value="2">2 - Finalizada</option>
+						<option value="0">0 - Cancelada</option>
+					</select>
+					</div>
+					
+				<div>
+				<button
+					className="btn btn-sm btn-info text-white"
+					onClick={() => {
+					setFilterStartDate('');
+					setFilterEndDate('');
+					setFilterEstado('');
+					}}
+				>
+					Limpiar
+				</button>
 				</div>
+			</div>
+			</div>
+				
+			<div className="card mb-4">
+				<div className="mb-3">Lista de Pacientes</div>
 				<div className="card-body p-0">
 					<table className="table mb-0">
 						<thead>
@@ -620,7 +774,11 @@ export default function Citas() {
 															<button className="btn btn-sm btn-success me-2" onClick={() => handleFinalizar(c.id_cita)} title="Finalizar">
 																<i className="bi bi-check2-square"></i>
 															</button>
-															<button className="btn btn-sm btn-primary me-2" onClick={() => openEdit(c)} title="Editar">
+															<button
+																className="btn btn-sm btn-primary me-2"
+																onClick={() => handleEditClick(c)}
+																title="Editar"
+																>
 																<i className="bi bi-pencil"></i>
 															</button>
 															<button className="btn btn-sm btn-danger" onClick={() => handleDelete(c.id_cita)} title="Eliminar">
@@ -657,8 +815,9 @@ export default function Citas() {
 								</li>
 							</ul>
 						</nav>
+			</div>
 
-						{/* Citas hoy card (count) */}
+			{/* Citas hoy card (count) */}
 						<div className="mt-3">
 							<div className="card" style={{ width: 220 }}>
 								<div className="card-body d-flex align-items-center">
@@ -674,7 +833,6 @@ export default function Citas() {
 								</div>
 							</div>
 						</div>
-			</div>
 
 			{/* Modal (simplificado) */}
 			{showModal && (
@@ -899,13 +1057,14 @@ export default function Citas() {
 								</div>
 								<div className="modal-footer">
 									<button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cerrar</button>
-									<button type="submit" className="btn btn-primary">Guardar</button>
+									<button type="submit" className="btn btn-info text-white">Guardar</button>
 								</div>
 							</form>
 						</div>
 					</div>
 				</div>
 			)}
+			
 		</div>
 	);
 }
