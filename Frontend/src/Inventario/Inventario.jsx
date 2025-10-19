@@ -51,6 +51,21 @@ export default function Inventario() {
     }
   };
 
+  // Convert various date formats to yyyy-mm-dd for input[type=date] value
+  const toInputDate = (iso) => {
+    if (!iso) return "";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
+    try {
+      const d = new Date(iso);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    } catch (e) {
+      return (iso && iso.split ? iso.split("T")[0] : "") || "";
+    }
+  };
+
   useEffect(() => {
     fetchInsumos();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -180,18 +195,18 @@ export default function Inventario() {
     setTouched({});
     setShowModal(true);
   };
-
   const handleEditar = (producto) => {
     setModalTitle("Editar Producto");
     setEditingId(producto.id_insumo || producto.id);
     setForm({
       nombre_insumo: producto.nombre_insumo || producto.nombre || "",
       descripcion: producto.descripcion || "",
-      stock: producto.stock || 0,
-      stock_minimo: producto.stock_minimo || 0,
+      // use strings for controlled inputs
+      stock: producto.stock != null ? String(producto.stock) : "",
+      stock_minimo: producto.stock_minimo != null ? String(producto.stock_minimo) : "",
       unidad_medida: producto.unidad_medida || "",
       fecha_vencimiento: producto.fecha_vencimiento
-        ? producto.fecha_vencimiento.split("T")[0]
+        ? toInputDate(producto.fecha_vencimiento)
         : "",
     });
     setErrors({});
@@ -214,7 +229,7 @@ export default function Inventario() {
 
     if (result.isConfirmed) {
       setLoading(true);
-      http: try {
+      try {
         const res = await fetch(
           `http://localhost:5000/api/inventario/insumos/${id}`,
           {
@@ -332,6 +347,31 @@ export default function Inventario() {
     return Math.ceil(diff / (1000 * 60 * 60 * 24));
   };
 
+  const formatDate = (iso) => {
+    if (!iso) return '-';
+    try {
+      const d = new Date(iso);
+      // dd/mm/yyyy
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${dd}/${mm}/${yyyy}`;
+    } catch (e) {
+      // try to fallback to common formats
+      const t = iso.split('T')[0] || iso;
+      // if already yyyy-mm-dd, convert to dd/mm/yyyy
+      const m = t.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+      return t;
+    }
+  };
+
+  // Expiration groups
+  const expired = productos.filter((p) => {
+    const d = daysUntil(p.fecha_vencimiento);
+    return d !== null && d < 0;
+  });
+
   const critical = productos.filter(
     (p) => typeof p.stock !== "undefined" && Number(p.stock) <= 0
   );
@@ -360,21 +400,21 @@ export default function Inventario() {
       >
         {/* Header */}
         <div className="d-flex align-items-center mb-2">
-          <h1 className="h4 mb-0">Inventario</h1>
-          <div className="ms-auto d-flex gap-2">
+          <h2 className="fw-bold" style={{ color: "#111" }}>Inventario</h2>
+          <div className="ms-auto mt-3 d-flex gap-2">
             <input
-              type="text"
-              className="form-control"
-              placeholder="Buscar"
+            className="form-control"
+						style={{ width: 320 }}
+						placeholder="Buscar"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              style={{ width: "220px" }}
             />
             <button
-              className="btn btn-info text-white fw-semibold"
+            className="btn btn-info text-white"
+						style={{ width: 120, height: '38px' }}
               onClick={handleAgregar}
             >
-              Agregar Producto
+              Agregar
             </button>
           </div>
         </div>
@@ -385,13 +425,14 @@ export default function Inventario() {
             <div className="col">
               <h5 className="mb-0">Lista de productos</h5>
             </div>
-            <div className="col text-end">
-              <span className="badge bg-danger me-2">Stock Bajo</span>
-              <span className="badge bg-warning text-dark me-2">
-                Por Vencer
-              </span>
-              <span className="badge bg-success">Stock Normal</span>
-            </div>
+      <div className="col text-end">
+        <span className="badge bg-success me-2">Stock Normal</span>
+        <span className="badge bg-warning text-dark me-2">Stock Bajo</span>
+        <span className="badge bg-danger me-2">Sin Stock</span>
+        <span className="badge me-2" style={{backgroundColor: '#0d6efd', color: 'white'}}>Vencimiento lejano</span>
+        <span className="badge me-2" style={{backgroundColor: '#fd7e14', color: 'white'}}>Vence pronto</span>
+        <span className="badge" style={{backgroundColor: '#6f4e37', color: 'white'}}>Vencido</span>
+      </div>
           </div>
           <div className="card-body p-0">
             <table className="table mb-0 align-middle">
@@ -428,27 +469,36 @@ export default function Inventario() {
                       </td>
                       <td>{p.descripcion}</td>
                       <td>
-                        <span
-                          className={`badge rounded-pill px-3 py-2 ${
-                            p.stock <= 0
-                              ? "bg-danger"
-                              : p.stock <= p.stock_minimo
-                              ? "bg-warning text-dark"
-                              : "bg-success"
-                          }`}
-                        >
+                        <span className={`badge rounded-pill px-3 py-2`} style={{
+                          backgroundColor:
+                            Number(p.stock) <= 0
+                              ? '#dc3545' // red
+                              : Number(p.stock) <= Number(p.stock_minimo)
+                              ? '#ffc107' // yellow (bootstrap warning)
+                              : '#198754', // green (bootstrap success darker)
+                          color: Number(p.stock) <= 0 ? 'white' : Number(p.stock) <= p.stock_minimo ? '#212529' : 'white'
+                        }}>
                           {p.stock}
                         </span>
                       </td>
                       <td>{p.unidad_medida}</td>
                       <td>
-                        {p.fecha_vencimiento
-                          ? p.fecha_vencimiento.split("T")[0]
-                          : "-"}
+                        <span className="badge rounded-pill px-3 py-2" style={{
+                          backgroundColor: (() => {
+                            const d = daysUntil(p.fecha_vencimiento);
+                            if (d === null) return '#0d6efd'; // blue default
+                            if (d < 0) return '#6f4e37'; // brown for expired
+                            if (d <= 30) return '#fd7e14'; // orange for warning
+                            return '#0d6efd'; // blue for far
+                          })(),
+                          color: '#fff'
+                        }}>
+                          {formatDate(p.fecha_vencimiento)}
+                        </span>
                       </td>
                       <td>
                         <button
-                          className="btn btn-sm btn-outline-success"
+                          className="btn btn-sm btn-success me-2"
                           onClick={() =>
                             navigate("/producto", {
                               state: { id: p.id_insumo },
@@ -458,13 +508,13 @@ export default function Inventario() {
                           <i className="bi bi-eye"></i>
                         </button>
                         <button
-                          className="btn btn-sm btn-outline-primary me-1"
+                          className="btn btn-sm btn-primary me-2"
                           onClick={() => handleEditar(p)}
                         >
                           <i className="bi bi-pencil"></i>
                         </button>
                         <button
-                          className="btn btn-sm btn-outline-danger"
+                          className="btn btn-sm btn-danger"
                           onClick={() => handleDelete(p.id_insumo)}
                         >
                           <i className="bi bi-trash"></i>
@@ -521,7 +571,7 @@ export default function Inventario() {
         <div className="alertas mt-3 card">
           <div className="row g-3 p-3">
             <div className="col-md-6">
-              <h6 className="fw-bold text-danger">Alertas del Sistema</h6>
+              <h6 className="fw-bold" style={{color: ' #00C2CC'}}>Alertas de Stock</h6>
               {critical.length === 0 && lowStock.length === 0 ? (
                 <div className="bg-light p-2 rounded text-muted">
                   No hay alertas de stock
@@ -531,7 +581,8 @@ export default function Inventario() {
                   {critical.slice(0, 3).map((p) => (
                     <div
                       key={`crit-${p.id_insumo}`}
-                      className="bg-danger bg-opacity-10 p-2 rounded text-danger mb-2"
+                      className="p-2 rounded mb-2"
+                      style={{backgroundColor: 'rgba(220,53,69,0.08)', color: '#dc3545'}}
                     >
                       <strong>{p.nombre_insumo}</strong>
                       <br />
@@ -543,7 +594,8 @@ export default function Inventario() {
                     .map((p) => (
                       <div
                         key={`low-${p.id_insumo}`}
-                        className="bg-danger bg-opacity-10 p-2 rounded text-danger mb-2"
+                        className="p-2 rounded mb-2"
+                        style={{backgroundColor: 'rgba(255,193,7,0.08)', color: '#856404'}}
                       >
                         <strong>{p.nombre_insumo}</strong>
                         <br />
@@ -559,17 +611,43 @@ export default function Inventario() {
               )}
             </div>
             <div className="col-md-6">
-              <h6 className="fw-bold text-warning">Advertencias</h6>
+              <h6 className="fw-bold" style={{color: ' #00C2CC'}}>Alertas de Caducidad</h6>
+              {/* Mostrar vencidos primero */}
+              {expired.length > 0 && (
+                <>
+                  <div className="small mb-1" style={{color: '#6f4e37'}}><strong>Vencidos</strong></div>
+                  {expired.slice(0, 3).map((p) => (
+                    <div
+                      key={`expd-${p.id_insumo}`}
+                      className="p-2 rounded mb-2"
+                      style={{backgroundColor: 'rgba(111,78,55,0.08)', color: '#6f4e37'}}
+                    >
+                      <strong>{p.nombre_insumo}</strong>
+                      <br />
+                      Vencido: {formatDate(p.fecha_vencimiento)}
+                    </div>
+                  ))}
+                  {expired.length > 3 && (
+                    <div className="small text-muted mb-2">y {expired.length - 3} más...</div>
+                  )}
+                </>
+              )}
+
+              {/* Luego items próximos a vencer */}
               {expiring.length === 0 ? (
-                <div className="bg-warning bg-opacity-25 p-2 rounded text-dark">
-                  Sin advertencias
-                </div>
+                expiring.length === 0 && expired.length === 0 ? (
+                  <div className="p-2 rounded" style={{backgroundColor: 'rgba(13,110,253,0.08)', color: '#0d6efd'}}>
+                    Sin alertas de caducidad
+                  </div>
+                ) : null
               ) : (
                 <>
+                  <div className="small mb-1" style={{color: '#fd7e14'}}><strong>Próximos a vencer</strong></div>
                   {expiring.slice(0, 3).map((p) => (
                     <div
                       key={`exp-${p.id_insumo}`}
-                      className="bg-warning bg-opacity-25 p-2 rounded text-dark mb-2"
+                      className="p-2 rounded mb-2"
+                      style={{backgroundColor: 'rgba(253,126,20,0.08)', color: '#fd7e14'}}
                     >
                       <strong>{p.nombre_insumo}</strong>
                       <br />
@@ -577,9 +655,7 @@ export default function Inventario() {
                     </div>
                   ))}
                   {expiring.length > 3 && (
-                    <div className="small text-muted">
-                      y {expiring.length - 3} más...
-                    </div>
+                    <div className="small text-muted">y {expiring.length - 3} más...</div>
                   )}
                 </>
               )}

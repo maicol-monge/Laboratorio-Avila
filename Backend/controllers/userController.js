@@ -231,3 +231,34 @@ function ofuscarCorreo(correo) {
     const domainMasked = domain[0] + "****" + domain[domain.length - 5] + domain.slice(-4);
     return `${userMasked}@${domainMasked}`;
 }
+
+// Cambiar correo electrónico (requiere contraseña actual para validar)
+exports.changeEmail = (req, res) => {
+    const userId = req.user && req.user.id_usuario;
+    if (!userId) return res.status(401).json({ message: 'No autorizado' });
+
+    const { currentPassword, newEmail } = req.body;
+    if (!currentPassword || !newEmail) return res.status(400).json({ message: 'Se requieren currentPassword y newEmail' });
+
+    // Obtener usuario
+    db.query('SELECT * FROM usuario WHERE id_usuario = ?', [userId], async (err, results) => {
+        if (err) return res.status(500).json({ message: 'Error en el servidor', error: err });
+        if (results.length === 0) return res.status(404).json({ message: 'Usuario no encontrado' });
+
+        const user = results[0];
+        const match = await bcrypt.compare(currentPassword, user.password);
+        if (!match) return res.status(401).json({ message: 'Contraseña incorrecta' });
+
+        // Verificar que el correo no esté en uso
+        db.query('SELECT id_usuario FROM usuario WHERE correo = ? AND id_usuario != ?', [newEmail, userId], (e2, r2) => {
+            if (e2) return res.status(500).json({ message: 'Error en el servidor', error: e2 });
+            if (r2.length > 0) return res.status(409).json({ message: 'El correo ya está registrado por otro usuario' });
+
+            // Actualizar correo
+            db.query('UPDATE usuario SET correo = ?, updated_at = NOW() WHERE id_usuario = ?', [newEmail, userId], (uErr) => {
+                if (uErr) return res.status(500).json({ message: 'Error actualizando correo', error: uErr });
+                return res.status(200).json({ message: 'Correo actualizado correctamente' });
+            });
+        });
+    });
+};

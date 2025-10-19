@@ -12,10 +12,16 @@ export default function Pacientes() {
   const [pacientes, setPacientes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  // citas para contador "Citas hoy"
+  const [citas, setCitas] = useState([]);
   const navigate = useNavigate();
 
   // búsqueda
   const [query, setQuery] = useState("");
+
+  // paginación (igual que Inventario)
+  const [currentPage, setCurrentPage] = useState(1);
+  const perPage = 5;
 
   // modal / panel
   const [showModal, setShowModal] = useState(false);
@@ -42,9 +48,73 @@ export default function Pacientes() {
   // ---------- UTIL ----------
   const formatDateDDMMYYYY = (iso) => {
     if (!iso) return "-";
-    const d = iso.split("T")[0];
-    const [y, m, day] = d.split("-");
-    return `${day}-${m}-${y}`;
+    try {
+      // If it's already a Date
+      if (iso instanceof Date) {
+        const d = iso;
+        const day = String(d.getDate()).padStart(2, '0');
+        const mon = String(d.getMonth() + 1).padStart(2, '0');
+        const y = d.getFullYear();
+        return `${day}/${mon}/${y}`;
+      }
+      const s = String(iso).trim();
+      // 1) YYYY-MM-DD (with optional time)
+      let m = s.match(/(\d{4})-(\d{2})-(\d{2})/);
+      if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+      // 2) DD/MM/YYYY
+      m = s.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+      if (m) return `${m[1]}/${m[2]}/${m[3]}`;
+      // 3) Malformed like "24 00:00:00/05/2004" -> capture first 2 digits, then /MM/YYYY
+      m = s.match(/(\d{2}).*?(\d{2})\/(\d{4})/);
+      if (m) return `${m[1]}/${m[2]}/${m[3]}`;
+      // 4) Try splitting by space and taking token that looks like DD/MM/YYYY or YYYY-MM-DD
+      const parts = s.split(/\s+/);
+      for (const p of parts) {
+        const r1 = p.match(/(\d{4})-(\d{2})-(\d{2})/);
+        if (r1) return `${r1[3]}/${r1[2]}/${r1[1]}`;
+        const r2 = p.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+        if (r2) return `${r2[1]}/${r2[2]}/${r2[3]}`;
+      }
+      // 5) Fallback to Date parsing
+      const d2 = new Date(s);
+      if (!isNaN(d2.getTime())) {
+        const day = String(d2.getDate()).padStart(2, '0');
+        const mon = String(d2.getMonth() + 1).padStart(2, '0');
+        const y2 = d2.getFullYear();
+        return `${day}/${mon}/${y2}`;
+      }
+      // If nothing matched, return original as a last resort (trimmed)
+      return s;
+    } catch (e) {
+      return String(iso);
+    }
+  };
+
+  // Parse various date strings and return ISO YYYY-MM-DD when possible
+  const parseDateToISO = (val) => {
+    if (!val) return null;
+    try {
+      if (val instanceof Date) {
+        const d = val;
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      }
+      const s = String(val).trim();
+      // YYYY-MM-DD
+      let m = s.match(/(\d{4})-(\d{2})-(\d{2})/);
+      if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+      // DD/MM/YYYY
+      m = s.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+      if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+      // Malformed like '24 00:00:00/05/2004' -> capture DD and MM/YYYY
+      m = s.match(/(\d{2}).*?(\d{2})\/(\d{4})/);
+      if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+      // Try Date parse
+      const d2 = new Date(s);
+      if (!isNaN(d2.getTime())) return `${d2.getFullYear()}-${String(d2.getMonth()+1).padStart(2,'0')}-${String(d2.getDate()).padStart(2,'0')}`;
+      return null;
+    } catch (e) {
+      return null;
+    }
   };
 
   const calcularEdad = (fecha) => {
@@ -86,10 +156,18 @@ export default function Pacientes() {
       }
       const data = await res.json();
       // normalizar sexo a mayúscula para uso consistente en UI
-      const normalized = (Array.isArray(data) ? data : []).map((p) => ({
-        ...p,
-        sexo: p && p.sexo ? String(p.sexo).toUpperCase() : "U",
-      }));
+      const normalized = (Array.isArray(data) ? data : []).map((p) => {
+        const sexo = p && p.sexo ? String(p.sexo).toUpperCase() : "U";
+        const rawFecha = p && p.fecha_nacimiento ? p.fecha_nacimiento : null;
+        const isoFecha = rawFecha ? parseDateToISO(rawFecha) : null;
+        return {
+          ...p,
+          sexo,
+          fecha_nacimiento_raw: rawFecha,
+          // keep fecha_nacimiento as ISO when possible (so forms and edit use YYYY-MM-DD)
+          fecha_nacimiento: isoFecha || (rawFecha ? String(rawFecha) : null),
+        };
+      });
       setPacientes(normalized);
     } catch (err) {
       setError(err.message);
@@ -97,9 +175,26 @@ export default function Pacientes() {
       setLoading(false);
     }
   };
+  // ---------- CITAS (para contador) ----------
+  const fetchCitas = async () => {
+    try {
+      const res = await fetch("http://localhost:5000/api/citas/", { headers });
+      if (!res.ok) {
+        try { await res.text(); } catch (e) {}
+        setCitas([]);
+        return;
+      }
+      const data = await res.json();
+      setCitas(Array.isArray(data) ? data : (data.results || data.data || []));
+    } catch (err) {
+      console.error('Error loading citas for contador', err);
+      setCitas([]);
+    }
+  };
 
   useEffect(() => {
     fetchPacientes();
+    fetchCitas();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -429,6 +524,15 @@ export default function Pacientes() {
     );
   });
 
+  // pagination derived values for pacientes
+  const totalPages = Math.max(1, Math.ceil(listaFiltrada.length / perPage));
+  const currentData = listaFiltrada.slice((currentPage - 1) * perPage, currentPage * perPage);
+
+  // reset page when query or data change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [query, pacientes]);
+
   // cerrar modal con clic fuera
   const closeModal = () => {
     setShowModal(false);
@@ -442,7 +546,7 @@ export default function Pacientes() {
       style={{
         marginLeft: "250px",
         minHeight: "100vh",
-        backgroundColor: "#F0F0F0",
+        backgroundColor: "#f8f9fa",
         padding: "20px",
       }}
     >
@@ -459,19 +563,18 @@ export default function Pacientes() {
 
         <div className="d-flex gap-2 align-items-center">
           <input
-            type="text"
+            className="form-control"
+						style={{ width: 320 }}
             placeholder="Buscar paciente..."
-            className="form-control form-control-sm"
-            style={{ width: "260px" }}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
           <button
-            className="btn"
-            style={{ backgroundColor: "#00C2CC", color: "#fff" }}
+             className="btn btn-info text-white"
+						style={{ width: 120, height: '38px' }}
             onClick={openAdd}
           >
-            <i className="bi bi-plus-lg me-2"></i> Nuevo Paciente
+             Agregar
           </button>
         </div>
       </div>
@@ -501,7 +604,7 @@ export default function Pacientes() {
             ></i>
             <div>
               <p className="text-muted small mb-0">Citas hoy</p>
-              <h5 className="fw-bold mb-0">—</h5>
+              <h5 className="fw-bold mb-0">{(Array.isArray(citas) ? citas : []).filter(x => { try { return x.fecha_cita && new Date(x.fecha_cita).toLocaleDateString() === new Date().toLocaleDateString() && x.estado === '1'; } catch (e) { return false; } }).length}</h5>
             </div>
           </div>
         </div>
@@ -531,14 +634,14 @@ export default function Pacientes() {
                     Cargando...
                   </td>
                 </tr>
-              ) : listaFiltrada.length === 0 ? (
+              ) : currentData.length === 0 ? (
                 <tr>
                   <td colSpan="9" className="text-center text-muted">
                     No hay pacientes registrados
                   </td>
                 </tr>
               ) : (
-                listaFiltrada.map((p) => (
+                currentData.map((p) => (
                   <tr key={p.id_paciente}>
                     <td>{p.id_paciente}</td>
                     <td>{p.nombre}</td>
@@ -556,7 +659,7 @@ export default function Pacientes() {
                       <div className="btn-group" role="group">
                         {/* Redirige a otra página usando window.location */}
                         <button
-                          className="btn btn-sm btn-info text-white"
+                          className="btn btn-sm btn-success me-2"
                           onClick={() =>
                             navigate("/fichaPaciente", {
                               state: { id: p.id_paciente },
@@ -568,7 +671,7 @@ export default function Pacientes() {
                         </button>
 
                         <button
-                          className="btn btn-sm btn-primary"
+                          className="btn btn-sm btn-primary me-2"
                           onClick={() => openEdit(p)}
                           title="Editar"
                         >
@@ -591,6 +694,23 @@ export default function Pacientes() {
           </table>
         </div>
       </div>
+
+      {/* paginación */}
+      <nav className="mt-3">
+        <ul className="pagination pagination-sm justify-content-end">
+          <li className={`page-item ${currentPage === 1 ? "disabled" : ""}`}>
+            <button className="page-link" onClick={() => setCurrentPage(currentPage - 1)}>Anterior</button>
+          </li>
+          {Array.from({ length: totalPages }, (_, i) => (
+            <li key={i + 1} className={`page-item ${currentPage === i + 1 ? "active" : ""}`}>
+              <button className="page-link" onClick={() => setCurrentPage(i + 1)}>{i + 1}</button>
+            </li>
+          ))}
+          <li className={`page-item ${currentPage === totalPages ? "disabled" : ""}`}>
+            <button className="page-link" onClick={() => setCurrentPage(currentPage + 1)}>Siguiente</button>
+          </li>
+        </ul>
+      </nav>
 
       {/* ---------- MODAL CENTRADO (ADD / VIEW / EDIT) ---------- */}
       {showModal && (
