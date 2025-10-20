@@ -11,6 +11,8 @@ import Producto from "./Inventario/Producto";
 import Administrador from "./components/Administrador";
 import Recuperar from "./components/Recuperar";
 import Citas from "./Citas/Citas";
+import Examenes from "./Examenes/Examenes";
+import CrudExamenes from "./Examenes/CrudExamenes";
 import './App.css'
 
 function App() {
@@ -70,6 +72,8 @@ function InnerApp() {
           <Route path="/fichaPaciente" element={<FichaPaciente />} />
           <Route path="/producto" element={<Producto />} />
           <Route path="/citas" element={<Citas />} />
+          <Route path="/examenes" element={<Examenes />} />
+          <Route path="/crud-examenes" element={<CrudExamenes />} />
         </Route>
         
         
