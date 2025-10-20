@@ -4,20 +4,54 @@ import { useNavigate } from "react-router-dom";
 
 function Examenes() {
   const [examenesRealizados, setExamenesRealizados] = useState([]);
+  const [pacientes, setPacientes] = useState([]);
+  const [examenes, setExamenes] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Cargar exámenes realizados
     axios
-      .get("http://localhost:5000/api/examen_realizado")
+      .get("http://localhost:5000/api/examenes_realizados", {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      })
       .then((res) => {
         setExamenesRealizados(res.data);
         setLoading(false);
       })
-      .catch(() => {
-        setLoading(false);
-      });
+      .catch(() => setLoading(false));
+
+    // Cargar pacientes
+    axios
+      .get("http://localhost:5000/api/pacientes", {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      })
+      .then((res) => setPacientes(res.data));
+
+    // Cargar exámenes plantilla
+    axios
+      .get("http://localhost:5000/api/examenes", {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      })
+      .then((res) => setExamenes(res.data));
   }, []);
+
+  // Helpers para mostrar nombre y tipo
+  const getPacienteNombre = (id) => {
+    const p = pacientes.find((x) => x.id_paciente === id);
+    return p ? `${p.nombre} ${p.apellido}` : id;
+  };
+
+  const getExamenNombre = (id) => {
+    const ex = examenes.find((x) => x.id_examen === id);
+    return ex ? ex.titulo_examen : id;
+  };
 
   return (
     <div
@@ -45,7 +79,7 @@ function Examenes() {
         <div className="d-flex justify-content-center mb-4 gap-3">
           <button
             className="btn btn-success"
-            onClick={() => navigate("/registrar-examen-realizado")}
+            onClick={() => navigate("/realizar-examen")}
           >
             Registrar examen a paciente
           </button>
@@ -82,18 +116,21 @@ function Examenes() {
                   examenesRealizados.map((ex) => (
                     <tr key={ex.id_examen_realizado}>
                       <td>{ex.id_examen_realizado}</td>
-                      <td>{ex.id_paciente}</td>
-                      <td>{ex.id_examen}</td>
+                      <td>{getPacienteNombre(ex.id_paciente)}</td>
+                      <td>{getExamenNombre(ex.id_examen)}</td>
                       <td>
-                        {ex.diagnostico
-                          ? typeof ex.diagnostico === "object"
-                            ? Object.entries(ex.diagnostico)
-                                .map(([k, v]) => `${k}: ${v}`)
-                                .join(", ")
-                          : ex.diagnostico
-                        : ""}
+                        <button
+                          className="btn btn-outline-info btn-sm"
+                          onClick={() =>
+                            navigate(
+                              `/editar-examen-realizado/${ex.id_examen_realizado}`
+                            )
+                          }
+                        >
+                          Ver/Editar
+                        </button>
                       </td>
-                      <td>{ex.estado}</td>
+                      <td>{ex.estado === "1" ? "Activo" : "Inactivo"}</td>
                       <td>{ex.created_at?.slice(0, 10)}</td>
                     </tr>
                   ))

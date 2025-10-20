@@ -13,6 +13,7 @@ import Recuperar from "./components/Recuperar";
 import Citas from "./Citas/Citas";
 import Examenes from "./Examenes/Examenes";
 import CrudExamenes from "./Examenes/CrudExamenes";
+import RealizarExamen from "./Examenes/RealizarExamen";
 import './App.css'
 
 function App() {
@@ -74,6 +75,7 @@ function InnerApp() {
           <Route path="/citas" element={<Citas />} />
           <Route path="/examenes" element={<Examenes />} />
           <Route path="/crud-examenes" element={<CrudExamenes />} />
+          <Route path="/realizar-examen" element={<RealizarExamen />} />
         </Route>
         
         
