@@ -6,6 +6,7 @@ import ExamenHDLQuimica from "../components/TiposExamenes/ExamenHDLQuimica";
 import ExamenHeces from "../components/TiposExamenes/ExamenHeces";
 import ExamenHpEghSo from "../components/TiposExamenes/ExamenHpEghSo";
 import ExamenHemograma from "../components/TiposExamenes/ExamenHemograma";
+import ExamenTransasQuimica from "../components/TiposExamenes/ExamenTransasQuimica";
 import DatosGeneralesExamen from "../Examenes/DatosGeneralesExamen";
 
 const nombresExamenes = [
@@ -28,6 +29,7 @@ const componentesExamen = {
   heces: ExamenHeces,
   "Hp + Egh+so": ExamenHpEghSo,
   hemograma: ExamenHemograma,
+  "Transas quimica": ExamenTransasQuimica,
 };
 
 export default function RealizarExamen() {
