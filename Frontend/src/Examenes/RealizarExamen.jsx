@@ -10,10 +10,11 @@ import ExamenTransasQuimica from "../components/TiposExamenes/ExamenTransasQuimi
 import ExamenHecesPam from "../components/TiposExamenes/ExamenHecesPam";
 import DatosGeneralesExamen from "../Examenes/DatosGeneralesExamen";
 import ExamenHpEgh from "../components/TiposExamenes/ExamenHpEgh";
+import ExamenSustanPhEgh from "../components/TiposExamenes/ExamenSustanPhEgh";
 
 const nombresExamenes = [
   "Hp + Egh",
-  "sustan,ph+egh",
+  "sustan,ph+egh", // <-- este nombre debe coincidir con el mapeo
   "Hp + Egh+so",
   "hemograma",
   "Transas quimica",
@@ -34,6 +35,7 @@ const componentesExamen = {
   "Transas quimica": ExamenTransasQuimica,
   "heces+pam": ExamenHecesPam,
   "Hp + Egh": ExamenHpEgh,
+  "sustan,ph+egh": ExamenSustanPhEgh, // <-- aquí lo agregas
 };
 
 export default function RealizarExamen() {
