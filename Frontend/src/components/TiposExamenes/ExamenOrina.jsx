@@ -1,6 +1,13 @@
 import React from "react";
+import DatosGeneralesExamen from "../../Examenes/DatosGeneralesExamen";
 
-export default function ExamenOrina({ form, setForm }) {
+export default function ExamenOrina({
+  form,
+  setForm,
+  pacientes,
+  selectedPaciente,
+  setSelectedPaciente,
+}) {
   // Helper para actualizar campos anidados
   const handleChange = (e, section, field) => {
     if (section) {
@@ -15,33 +22,14 @@ export default function ExamenOrina({ form, setForm }) {
 
   return (
     <div>
-      {/* Datos generales */}
-      <div style={{ display: "flex", gap: 16, marginBottom: 8 }}>
-        <div style={{ flex: 1 }}>
-          <label>Edad</label>
-          <input
-            className="form-control"
-            value={form.edad || ""}
-            onChange={(e) => handleChange(e, null, "edad")}
-          />
-        </div>
-        <div style={{ flex: 1 }}>
-          <label>Sexo</label>
-          <input
-            className="form-control"
-            value={form.sexo || ""}
-            onChange={(e) => handleChange(e, null, "sexo")}
-          />
-        </div>
-        <div style={{ flex: 1 }}>
-          <label>Tipo de muestra</label>
-          <input
-            className="form-control"
-            value={form.tipo_muestra || ""}
-            onChange={(e) => handleChange(e, null, "tipo_muestra")}
-          />
-        </div>
-      </div>
+      {/* Datos generales global */}
+      <DatosGeneralesExamen
+        form={form}
+        setForm={setForm}
+        pacientes={pacientes}
+        selectedPaciente={selectedPaciente}
+        setSelectedPaciente={setSelectedPaciente}
+      />
       {/* Examen Físico */}
       <div
         style={{
