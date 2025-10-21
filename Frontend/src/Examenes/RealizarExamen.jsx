@@ -3,6 +3,7 @@ import axios from "axios";
 import ExamenOrina from "../components/TiposExamenes/ExamenOrina";
 import ExamenQuimicaBasica from "../components/TiposExamenes/ExamenQuimicaBasica";
 import ExamenHDLQuimica from "../components/TiposExamenes/ExamenHDLQuimica";
+import ExamenHeces from "../components/TiposExamenes/ExamenHeces";
 import DatosGeneralesExamen from "../Examenes/DatosGeneralesExamen";
 
 const nombresExamenes = [
@@ -22,7 +23,7 @@ const componentesExamen = {
   orina: ExamenOrina,
   "(Basi) quimica": ExamenQuimicaBasica,
   "(HDL) quimica": ExamenHDLQuimica,
-  // ...agrega los demás...
+  heces: ExamenHeces,
 };
 
 export default function RealizarExamen() {
