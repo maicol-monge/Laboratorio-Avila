@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import ExamenOrina from "../components/TiposExamenes/ExamenOrina";
 import ExamenQuimicaBasica from "../components/TiposExamenes/ExamenQuimicaBasica";
+import ExamenHDLQuimica from "../components/TiposExamenes/ExamenHDLQuimica";
+import DatosGeneralesExamen from "../Examenes/DatosGeneralesExamen";
 
 const nombresExamenes = [
   "Hp + Egh",
@@ -19,6 +21,7 @@ const nombresExamenes = [
 const componentesExamen = {
   orina: ExamenOrina,
   "(Basi) quimica": ExamenQuimicaBasica,
+  "(HDL) quimica": ExamenHDLQuimica,
   // ...agrega los demás...
 };
 
@@ -27,21 +30,25 @@ export default function RealizarExamen() {
   const [form, setForm] = useState({});
   const [examenes, setExamenes] = useState([]);
   const [selectedExamenId, setSelectedExamenId] = useState("");
+  const [pacientes, setPacientes] = useState([]);
+  const [selectedPaciente, setSelectedPaciente] = useState("");
 
   useEffect(() => {
-    // Carga los exámenes de la tabla para obtener el ID al registrar
     axios
       .get("http://localhost:5000/api/examenes", {
         headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
       })
       .then((res) => setExamenes(res.data));
+    axios
+      .get("http://localhost:5000/api/pacientes", {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      })
+      .then((res) => setPacientes(res.data));
   }, []);
 
-  // Cuando cambia la plantilla seleccionada, busca el ID en la tabla
   useEffect(() => {
     const ex = examenes.find((x) => x.titulo_examen === selectedPlantilla);
     setSelectedExamenId(ex ? ex.id_examen : "");
-    // Opcional: inicializa el form según la plantilla
     setForm({});
   }, [selectedPlantilla, examenes]);
 
@@ -91,35 +98,16 @@ export default function RealizarExamen() {
               minWidth: 400,
             }}
           >
-            {/* Datos generales */}
-            <div style={{ display: "flex", gap: 16, marginBottom: 8 }}>
-              <div style={{ flex: 1 }}>
-                <label>Edad</label>
-                <input
-                  className="form-control"
-                  value={form.edad}
-                  onChange={(e) => setForm({ ...form, edad: e.target.value })}
-                />
-              </div>
-              <div style={{ flex: 1 }}>
-                <label>Sexo</label>
-                <input
-                  className="form-control"
-                  value={form.sexo}
-                  onChange={(e) => setForm({ ...form, sexo: e.target.value })}
-                />
-              </div>
-              <div style={{ flex: 1 }}>
-                <label>Tipo de muestra</label>
-                <input
-                  className="form-control"
-                  value={form.tipo_muestra}
-                  onChange={(e) => setForm({ ...form, tipo_muestra: e.target.value })}
-                />
-              </div>
-            </div>
             {/* Componente del examen seleccionado */}
-            {ComponenteExamen && <ComponenteExamen form={form} setForm={setForm} />}
+            {ComponenteExamen && (
+              <ComponenteExamen
+                form={form}
+                setForm={setForm}
+                pacientes={pacientes}
+                selectedPaciente={selectedPaciente}
+                setSelectedPaciente={setSelectedPaciente}
+              />
+            )}
             {/* Botones */}
             <div className="d-flex justify-content-end gap-3 mt-4">
               <button
