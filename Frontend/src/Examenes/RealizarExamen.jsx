@@ -67,6 +67,35 @@ export default function RealizarExamen() {
 
   const ComponenteExamen = componentesExamen[selectedPlantilla];
 
+  const handleSubmit = async (estado) => {
+    // Extrae tipo de muestra del formulario
+    const tipo_muestra = form.tipo_muestra || "";
+
+    // El diagnóstico solo contiene los datos del examen (sin paciente, sin tipo de muestra)
+    // Puedes filtrar si lo necesitas, pero si tipo_muestra está en form, lo puedes quitar así:
+    const { tipo_muestra: _, ...diagnosticoData } = form;
+
+    try {
+      await axios.post(
+        "http://localhost:5000/api/examenes_realizados", // <-- usa guion bajo
+        {
+          id_paciente: selectedPaciente,
+          id_examen: selectedExamenId,
+          tipo_muestra,
+          diagnostico: JSON.stringify(diagnosticoData),
+          estado,
+        },
+        {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        }
+      );
+      alert("Examen guardado correctamente");
+      setForm({});
+    } catch (err) {
+      alert("Error al guardar el examen");
+    }
+  };
+
   return (
     <div style={{ marginLeft: 250, minHeight: "100vh", background: "#f4f4f4" }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: 32 }}>
