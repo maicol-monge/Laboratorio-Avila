@@ -124,7 +124,7 @@ export default function RealizarExamen() {
             id_examen: examen.id_examen,
             tipo_muestra: examen.tipo_muestra,
             diagnostico: JSON.stringify(examen.diagnostico),
-            estado: "2",
+            estado: "1",
           },
           {
             headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
