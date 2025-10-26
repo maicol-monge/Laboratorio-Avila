@@ -22,8 +22,28 @@ export default function Citas() {
 	const [quickMode, setQuickMode] = useState(false);
 
 	const token = localStorage.getItem('token');
-	const [svMinDate, setSvMinDate] = useState(null);
-	const [svMinTime, setSvMinTime] = useState(null);
+		// helper to get YYYY-MM-DD from a Date (used by SV helpers)
+		const getYMD = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+		// helper to get current time in El Salvador (UTC-6)
+		const getSVNow = (d = new Date()) => {
+			const utcMs = d.getTime() + d.getTimezoneOffset() * 60000;
+			const svMs = utcMs + (-6 * 3600000);
+			return new Date(svMs);
+		};
+
+		// default SV today and one week ahead (YYYY-MM-DD)
+		const svTodayYMD = getYMD(getSVNow());
+		const svWeekYMD = getYMD(new Date(getSVNow().getTime() + 7 * 24 * 3600000));
+
+
+
+	const [svMinDate, setSvMinDate] = useState(svTodayYMD);
+	const [svMinTime, setSvMinTime] = useState(() => {
+		const sv = getSVNow();
+		const pad = n => String(n).padStart(2, '0');
+		return `${pad(sv.getHours())}:${pad(sv.getMinutes())}:${pad(sv.getSeconds())}`;
+	});
 
 	const [horaH, setHoraH] = useState('');
 	const [horaM, setHoraM] = useState('');
@@ -37,12 +57,11 @@ export default function Citas() {
 	const fechaInputRef = useRef(null);
 
 	// filtros: fecha inicio, fecha fin, estado
-	const getYMD = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-	const todayYMD = getYMD(new Date());
 	const weekYMD = getYMD(new Date(Date.now() + 7 * 24 * 3600 * 1000));
-	const [filterStartDate, setFilterStartDate] = useState('');
-	const [filterEndDate, setFilterEndDate] = useState('');
-	const [filterEstado, setFilterEstado] = useState(''); // por defecto 1 - Pendiente
+	// filtros: por defecto desde hoy (SV) hasta una semana en el futuro, estado Pendiente
+	const [filterStartDate, setFilterStartDate] = useState(svTodayYMD);
+	const [filterEndDate, setFilterEndDate] = useState(svWeekYMD);
+	const [filterEstado, setFilterEstado] = useState('1'); // por defecto 1 - Pendiente
 
 	const navigate = useNavigate();
 	const location = useLocation();
@@ -127,6 +146,36 @@ export default function Citas() {
 				return `${String(d.getUTCHours()).padStart(2,'0')}:${String(d.getUTCMinutes()).padStart(2,'0')}`;
 			}
 			return '-';
+		} catch (e) {
+			return '-';
+		}
+	}
+
+	// parse a YYYY-MM-DD into a local Date object (avoid timezone shift)
+	function parseYMDToLocalDate(ymd) {
+		if (!ymd) return null;
+		const parts = ymd.split('-');
+		if (parts.length !== 3) return null;
+		const y = Number(parts[0]);
+		const m = Number(parts[1]) - 1;
+		const d = Number(parts[2]);
+		return new Date(y, m, d);
+	}
+
+	// render various date inputs as dd-MM-yyyy for display
+	function formatFecha(val) {
+		if (!val && val !== 0) return '-';
+		try {
+			const s = String(val);
+			// prefer extracting YYYY-MM-DD if present
+			const m = s.match(/(\d{4})-(\d{2})-(\d{2})/);
+			if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+			const d = new Date(val);
+			if (isNaN(d.getTime())) return '-';
+			const dd = String(d.getDate()).padStart(2, '0');
+			const mm = String(d.getMonth() + 1).padStart(2, '0');
+			const yyyy = d.getFullYear();
+			return `${dd}-${mm}-${yyyy}`;
 		} catch (e) {
 			return '-';
 		}
@@ -276,7 +325,7 @@ export default function Citas() {
 	}
 
 	async function openNew() {
-		setForm({ id_paciente: '', fecha_cita: '', hora_cita: '', observaciones: '' });
+		setForm({ id_paciente: '', fecha_cita: '', hora_cita: '', observaciones: '', estado: '1' });
 		setEditingPacienteLabel('');
 		// si venimos con preselectPacienteId, intentar cargar y fijar el paciente
 		if (preselectPacienteIdFromLocation) {
@@ -304,7 +353,7 @@ export default function Citas() {
 		setSvMinTime(svTime);
 		// por defecto, preseleccionar la fecha de hoy (SV) y hora actual (HH:MM)
 		const defaultHM = svTime.slice(0,5);
-		setForm(f => ({ ...f, fecha_cita: svDate, hora_cita: defaultHM }));
+		setForm(f => ({ ...f, fecha_cita: svDate, hora_cita: defaultHM, estado: '1' }));
 		setHoraH(defaultHM.slice(0,2));
 		setHoraM(defaultHM.slice(3,5));
 		setEditingId(null);
@@ -682,22 +731,22 @@ async function handleFinalizar(id) {
 					<div className="d-flex flex-column">
 					<label className="form-label small mb-1">Desde</label>
 					<DatePicker
-						selected={filterStartDate ? new Date(filterStartDate) : null}
-						onChange={date => setFilterStartDate(date?.toISOString().split('T')[0] || '')}
+						selected={filterStartDate ? parseYMDToLocalDate(filterStartDate) : null}
+						onChange={date => setFilterStartDate(date ? getYMD(date) : '')}
 						className="form-control form-control-sm border-info"
 						placeholderText="Seleccionar fecha"
-						dateFormat="yyyy-MM-dd"
+						dateFormat="dd-MM-yyyy"
 						isClearable
 					/>
 					</div>
 					<div className="d-flex flex-column">
 					<label className="form-label small mb-1">Hasta</label>
 					<DatePicker
-						selected={filterEndDate ? new Date(filterEndDate) : null}
-						onChange={date => setFilterEndDate(date?.toISOString().split('T')[0] || '')}
+						selected={filterEndDate ? parseYMDToLocalDate(filterEndDate) : null}
+						onChange={date => setFilterEndDate(date ? getYMD(date) : '')}
 						className="form-control form-control-sm border-info"
 						placeholderText="Seleccionar fecha"
-						dateFormat="yyyy-MM-dd"
+						dateFormat="dd-MM-yyyy"
 						isClearable
 					/>
 					</div>
@@ -719,9 +768,9 @@ async function handleFinalizar(id) {
 				<button
 					className="btn btn-sm btn-info text-white"
 					onClick={() => {
-					setFilterStartDate('');
-					setFilterEndDate('');
-					setFilterEstado('');
+					setFilterStartDate(svTodayYMD);
+					setFilterEndDate(svWeekYMD);
+					setFilterEstado('1');
 					}}
 				>
 					Limpiar
@@ -754,7 +803,7 @@ async function handleFinalizar(id) {
 										<tr key={c.id_cita}>
 											<td>{c.id_cita}</td>
 											<td>{c.nombre ? `${c.nombre} ${c.apellido}` : '-'}</td>
-											<td>{c.fecha_cita ? new Date(c.fecha_cita).toLocaleDateString() : '-'}</td>
+											<td>{c.fecha_cita ? formatFecha(c.fecha_cita) : '-'}</td>
 											<td>{formatHora(c.hora_cita)}</td>
 											<td>{c.estado === '1' ? 'Pendiente' : c.estado === '2' ? 'Atendida' : 'Cancelada'}</td>
 											<td>
@@ -998,7 +1047,7 @@ async function handleFinalizar(id) {
 									)}
 									<div className="mb-3">
 										<label className="form-label">Fecha</label>
-										<input ref={fechaInputRef} type="date" className="form-control" value={form.fecha_cita} min={svMinDate || undefined} onChange={e => setForm({ ...form, fecha_cita: e.target.value })} />
+										<input ref={fechaInputRef} type="date" className="form-control" value={form.fecha_cita} onChange={e => setForm({ ...form, fecha_cita: e.target.value })} />
 									</div>
 									<div className="mb-3">
 										<label className="form-label">Hora</label>
