@@ -86,6 +86,16 @@ export default function Navbar() {
             Estadísticas
           </Link>
         </li>
+
+        <li className="nav-item mb-2">
+          <Link
+            to="/Pagos"
+            className={`nav-link d-flex align-items-center text-dark py-2 custom-link ${location.pathname.startsWith('/Pagos') ? 'active' : ''}`}
+          >
+            <i className="bi bi-cash-coin fs-4 me-3"></i>
+            Pagos
+          </Link>
+        </li>
       </ul>
 
       <hr />
