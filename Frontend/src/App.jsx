@@ -1,4 +1,9 @@
-import { BrowserRouter as Router, Route, Routes, useLocation } from "react-router-dom";
+import {
+  BrowserRouter as Router,
+  Route,
+  Routes,
+  useLocation,
+} from "react-router-dom";
 import { useEffect } from "react";
 import ProtectedRoute from "./ProtectedRoute";
 import Navbar from "./components/Navbar";
@@ -14,8 +19,9 @@ import Citas from "./Citas/Citas";
 import Examenes from "./Examenes/Examenes";
 import CrudExamenes from "./Examenes/CrudExamenes";
 import RealizarExamen from "./Examenes/RealizarExamen";
+import EditarExamenRealizado from "./Examenes/EditarExamenRealizado";
 import Pagos from "./Pagos/Pagos";
-import './App.css'
+import "./App.css";
 
 function App() {
   useEffect(() => {
@@ -26,7 +32,7 @@ function App() {
       clearTimeout(timeout);
       timeout = setTimeout(() => {
         localStorage.removeItem("user");
-        window.location.href = "/"; 
+        window.location.href = "/";
       }, INACTIVITY_LIMIT);
     };
 
@@ -53,7 +59,8 @@ function App() {
 
 function InnerApp() {
   const location = useLocation();
-  const showNavbar = location.pathname !== "/" && location.pathname !== "/recuperar";
+  const showNavbar =
+    location.pathname !== "/" && location.pathname !== "/recuperar";
 
   return (
     <>
@@ -77,10 +84,12 @@ function InnerApp() {
           <Route path="/examenes" element={<Examenes />} />
           <Route path="/crud-examenes" element={<CrudExamenes />} />
           <Route path="/realizar-examen" element={<RealizarExamen />} />
+          <Route
+            path="/editar-examen-realizado/:id"
+            element={<EditarExamenRealizado />}
+          />
           <Route path="/Pagos" element={<Pagos />} />
         </Route>
-        
-        
       </Routes>
     </>
   );

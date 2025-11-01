@@ -1,6 +1,14 @@
 import React from "react";
+import DatosGeneralesExamen from "../../Examenes/DatosGeneralesExamen";
 
-export default function ExamenQuimicaBasica({ form, setForm }) {
+export default function ExamenQuimicaBasica({
+  form,
+  setForm,
+  readOnly = false,
+  pacientes = [],
+  selectedPaciente,
+  setSelectedPaciente,
+}) {
   // Helper para actualizar campos
   const handleChange = (e, field) => {
     setForm({
@@ -11,33 +19,14 @@ export default function ExamenQuimicaBasica({ form, setForm }) {
 
   return (
     <div>
-      {/* Datos generales */}
-      <div style={{ display: "flex", gap: 16, marginBottom: 8 }}>
-        <div style={{ flex: 1 }}>
-          <label>Edad:</label>
-          <input
-            className="form-control"
-            value={form.edad || ""}
-            onChange={(e) => handleChange(e, "edad")}
-          />
-        </div>
-        <div style={{ flex: 1 }}>
-          <label>Sexo:</label>
-          <input
-            className="form-control"
-            value={form.sexo || ""}
-            onChange={(e) => handleChange(e, "sexo")}
-          />
-        </div>
-        <div style={{ flex: 1 }}>
-          <label>Tipo de muestra:</label>
-          <input
-            className="form-control"
-            value={form.tipo_muestra || "Sangre"}
-            onChange={(e) => handleChange(e, "tipo_muestra")}
-          />
-        </div>
-      </div>
+      {/* Datos generales (delegado al componente) */}
+      <DatosGeneralesExamen
+        form={form}
+        setForm={setForm}
+        pacientes={pacientes}
+        selectedPaciente={selectedPaciente}
+        setSelectedPaciente={setSelectedPaciente}
+      />
       {/* Tabla de resultados */}
       <table className="table table-bordered" style={{ marginTop: 16 }}>
         <thead>
@@ -49,56 +38,71 @@ export default function ExamenQuimicaBasica({ form, setForm }) {
         </thead>
         <tbody>
           <tr>
-            <td><b>GLUCOSA</b></td>
+            <td>
+              <b>GLUCOSA</b>
+            </td>
             <td>
               <input
                 className="form-control"
                 value={form.glucosa || ""}
                 onChange={(e) => handleChange(e, "glucosa")}
+                disabled={readOnly}
               />
             </td>
             <td>70 – 105 mg/dl</td>
           </tr>
           <tr>
-            <td><b>COLESTEROL</b></td>
+            <td>
+              <b>COLESTEROL</b>
+            </td>
             <td>
               <input
                 className="form-control"
                 value={form.colesterol || ""}
                 onChange={(e) => handleChange(e, "colesterol")}
+                disabled={readOnly}
               />
             </td>
             <td>150 – 200 mg/dl</td>
           </tr>
           <tr>
-            <td><b>TRIGLICERIDOS</b></td>
+            <td>
+              <b>TRIGLICERIDOS</b>
+            </td>
             <td>
               <input
                 className="form-control"
                 value={form.trigliceridos || ""}
                 onChange={(e) => handleChange(e, "trigliceridos")}
+                disabled={readOnly}
               />
             </td>
             <td>50 – 150 mg/dl</td>
           </tr>
           <tr>
-            <td><b>ACIDO URICO</b></td>
+            <td>
+              <b>ACIDO URICO</b>
+            </td>
             <td>
               <input
                 className="form-control"
                 value={form.acido_urico || ""}
                 onChange={(e) => handleChange(e, "acido_urico")}
+                disabled={readOnly}
               />
             </td>
             <td>3 – 7 mg/dl</td>
           </tr>
           <tr>
-            <td><b>CREATININA</b></td>
+            <td>
+              <b>CREATININA</b>
+            </td>
             <td>
               <input
                 className="form-control"
                 value={form.creatinina || ""}
                 onChange={(e) => handleChange(e, "creatinina")}
+                disabled={readOnly}
               />
             </td>
             <td>0.7 – 1.3 mg/dl</td>
