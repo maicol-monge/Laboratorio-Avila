@@ -201,7 +201,27 @@ function Examenes() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `examen_${id}.docx`;
+      // Usar el nombre sugerido por el servidor en Content-Disposition o X-Filename si está disponible
+      const headers = res.headers || {};
+      let cd = headers['content-disposition'] || headers['Content-Disposition'];
+      let suggested = headers['x-filename'] || headers['X-Filename'];
+      if (!suggested && cd) {
+        const match = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(cd);
+        const fname = match ? (match[1] || match[2]) : '';
+        if (fname) suggested = decodeURIComponent(fname);
+      }
+      if (!suggested) {
+        // Fallback: armar nombre con datos locales
+        const ex = examenesRealizados.find((e) => e.id_examen_realizado === id);
+        const nombre = ex ? getPacienteNombre(ex.id_paciente) : `examen_${id}`;
+        const tipo = ex ? getExamenNombre(ex.id_examen) : '';
+        const d = ex ? new Date(ex.created_at) : new Date();
+        const dd = String(d.getDate()).padStart(2,'0');
+        const mm = String(d.getMonth()+1).padStart(2,'0');
+        const yyyy = String(d.getFullYear());
+        suggested = `${nombre} - ${tipo} - ${dd}-${mm}-${yyyy}.docx`;
+      }
+      a.download = suggested;
       document.body.appendChild(a);
       a.click();
       a.remove();

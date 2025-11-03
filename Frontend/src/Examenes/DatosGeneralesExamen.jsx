@@ -334,19 +334,12 @@ export default function DatosGeneralesExamen({
       <div style={{ display: "flex", gap: 16, marginBottom: 8 }}>
         <div style={{ flex: 1 }}>
           <label>Edad</label>
-          {!quickForm.fecha_nacimiento ? (
-            <input
-              className="form-control"
-              value={form.edad || ""}
-              onChange={(e) => handleChange(e, "edad")}
-            />
-          ) : (
-            <input
-              className="form-control"
-              value={quickEdadLocal ?? ""}
-              readOnly
-            />
-          )}
+          <input
+            className="form-control"
+            value={form.edad || ""}
+            onChange={(e) => handleChange(e, "edad")}
+            readOnly={lockPaciente}
+          />
         </div>
         <div style={{ flex: 1 }}>
           <label>Sexo</label>
@@ -354,6 +347,7 @@ export default function DatosGeneralesExamen({
             className="form-control"
             value={form.sexo || ""}
             onChange={(e) => handleChange(e, "sexo")}
+            readOnly={lockPaciente}
           />
         </div>
         <div style={{ flex: 1 }}>

@@ -88,9 +88,14 @@ exports.updateExamenRealizado = (req, res) => {
     typeof diagnostico === "string" ? diagnostico : JSON.stringify(diagnostico);
 
   db.query(
-    `UPDATE examen_realizado SET id_paciente = ?, id_examen = ?, diagnostico = ?, estado = ?, updated_at = NOW()
-         WHERE id_examen_realizado = ?`,
-    [id_paciente, id_examen, diagnosticoStr, estado, id],
+    `UPDATE examen_realizado 
+       SET id_paciente = ?, 
+           id_examen = ?, 
+           diagnostico = ?, 
+           estado = COALESCE(?, estado), 
+           updated_at = NOW()
+     WHERE id_examen_realizado = ?`,
+    [id_paciente, id_examen, diagnosticoStr, estado ?? null, id],
     (err, results) => {
       if (err) {
         return res
@@ -675,10 +680,27 @@ exports.exportExamenRealizado = (req, res) => {
         }
       }
 
+      // Construir nombre de archivo: Paciente - Examen - dd-MM-yyyy
+      const safe = (s) => String(s || "").replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim();
+      const toDDMMYYYY = (val) => {
+        try {
+          const d = val && val.toISOString ? new Date(val) : new Date(String(val));
+          const dd = String(d.getDate()).padStart(2, '0');
+          const mm = String(d.getMonth() + 1).padStart(2, '0');
+          const yyyy = String(d.getFullYear());
+          return `${dd}-${mm}-${yyyy}`;
+        } catch { return String(val || ''); }
+      };
+      const fechaDMY = row.created_at ? toDDMMYYYY(row.created_at) : "";
+      const fileNameUtf8 = `${safe(row.paciente_nombre)} ${safe(row.paciente_apellido)} - ${safe(row.titulo_examen)} - ${safe(fechaDMY)}.docx`;
+      const fileNameFallback = fileNameUtf8; // ya viene saneado
+
+      // Exponer header para CORS y enviar filename RFC5987
       res.set({
-        "Content-Type":
-          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "Content-Disposition": `attachment; filename=Examen_${id}.docx`,
+        "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "Content-Disposition": `attachment; filename="${fileNameFallback}"; filename*=UTF-8''${encodeURIComponent(fileNameUtf8)}`,
+        "Access-Control-Expose-Headers": "Content-Disposition, X-Filename",
+        "X-Filename": fileNameUtf8,
       });
       return res.send(finalBuffer);
     } catch (e) {
@@ -709,7 +731,7 @@ exports.exportExamenRealizadoPdf = (req, res) => {
     const row = results[0];
     let diagnostico = {};
     try { diagnostico = row.diagnostico ? JSON.parse(row.diagnostico) : {}; } catch (_) { diagnostico = {}; }
-
+    // Reutilizar el mismo mapeo de datos que exportExamenRealizado para asegurar paridad en PDF
     const data = {
       paciente: `${row.paciente_nombre || ""} ${row.paciente_apellido || ""}`.trim(),
       edad: diagnostico.edad || row.paciente_edad || "",
@@ -770,6 +792,22 @@ exports.exportExamenRealizadoPdf = (req, res) => {
       levaduras: (diagnostico.parasitologico && diagnostico.parasitologico.levaduras) || diagnostico.levaduras || "",
       tipo_muestra: diagnostico.tipoMuestra || diagnostico.tipo_muestra || "",
       numero_registro: diagnostico.numeroRegistro || row.id_examen_realizado || "",
+      fisico_color: (diagnostico.fisico && diagnostico.fisico.color) || diagnostico.color || "",
+      fisico_consistencia: (diagnostico.fisico && diagnostico.fisico.consistencia) || diagnostico.consistencia || "",
+      fisico_mucus: (diagnostico.fisico && diagnostico.fisico.mucus) || diagnostico.mucus || "",
+      fisico_leucocitos: (diagnostico.fisico && diagnostico.fisico.leucocitos) || (diagnostico.microscopico && diagnostico.microscopico.leucocitos) || diagnostico.leucocitos || "",
+      fisico_hematies: (diagnostico.fisico && diagnostico.fisico.hematies) || (diagnostico.microscopico && diagnostico.microscopico.hematies) || diagnostico.hematies || "",
+      parasitologico_activos: (diagnostico.parasitologico && diagnostico.parasitologico.activos) || diagnostico.activos || "",
+      parasitologico_quistes: (diagnostico.parasitologico && diagnostico.parasitologico.quistes) || diagnostico.quistes || "",
+      parasitologico_huevo: (diagnostico.parasitologico && diagnostico.parasitologico.huevo) || diagnostico.huevo || "",
+      parasitologico_larva: (diagnostico.parasitologico && diagnostico.parasitologico.larva) || diagnostico.larva || "",
+      parasitologico_bacterias: (diagnostico.parasitologico && diagnostico.parasitologico.bacterias) || diagnostico.bacterias || "",
+      parasitologico_levaduras: (diagnostico.parasitologico && diagnostico.parasitologico.levaduras) || diagnostico.levaduras || "",
+      ph_heces: diagnostico.ph_heces || diagnostico.phHeces || "",
+      sustancias_reductoras: diagnostico.sustancias_reductoras || diagnostico.sustanciasReductoras || "",
+      polimorfonucleares: (diagnostico.pam && diagnostico.pam.polimorfonucleares) || diagnostico.polimorfonucleares || "",
+      mononucleares: (diagnostico.pam && diagnostico.pam.mononucleares) || diagnostico.mononucleares || "",
+      helicobacter_pylori: diagnostico.helicobacter_pylori || diagnostico.helicobacter || diagnostico.helicobacter_pylori || "",
       fecha: row.created_at ? (row.created_at.toISOString ? row.created_at.toISOString().slice(0, 10) : String(row.created_at).slice(0, 10)) : "",
     };
 
@@ -800,11 +838,88 @@ exports.exportExamenRealizadoPdf = (req, res) => {
       const handler = new TemplateHandler();
       const outBuffer = await handler.process(templateBuffer, data);
 
-      // Guardar DOCX en temp
+      // Parchear como en exportExamenRealizado para garantizar que todos los controles se llenen
+      const patchProcessedDoc = async (docBuffer, dataObj) => {
+        const zip = await JSZip.loadAsync(docBuffer);
+        const files = ["word/document.xml", "word/footnotes.xml", "word/endnotes.xml"];
+        Object.keys(zip.files).forEach((p) => {
+          if (/^word\/header[0-9]*\.xml$/.test(p) || /^word\/footer[0-9]*\.xml$/.test(p)) files.push(p);
+        });
+        const escapeXml = (str) => String(str)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/\"/g, "&quot;")
+          .replace(/'/g, "&apos;");
+        const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&");
+        for (const fpath of files) {
+          const file = zip.file(fpath);
+          if (!file) continue;
+          let content = await file.async("string");
+          for (const key of Object.keys(dataObj)) {
+            const val = dataObj[key];
+            if (val === undefined || val === null) continue;
+            const k = escapeRegex(key);
+            const tInnerRegex = new RegExp(
+              `(<w:sdt[\\s\\S]*?<w:sdtPr[\\s\\S]*?<w:tag[^>]*w:val=(?:\"${k}\"|'${k}')[^>]*>[\\s\\S]*?<\\/w:sdtPr>[\\s\\S]*?<w:sdtContent[\\s\\S]*?>[\\s\\S]*?<w:t>)([\\s\\S]*?)(<\\/w:t>)`,
+              "g"
+            );
+            content = content.replace(
+              tInnerRegex,
+              (fullMatch, beforeT, innerText, afterT) => {
+                const placeholder = "Haz clic o pulse aquí para escribir texto.";
+                if (!innerText || innerText.trim() === "" || innerText.includes(placeholder)) {
+                  return `${beforeT}${escapeXml(val)}${afterT}`;
+                }
+                return fullMatch;
+              }
+            );
+          }
+          zip.file(fpath, content);
+        }
+        return Buffer.from(await zip.generateAsync({ type: "nodebuffer" }));
+      };
+
+      let finalBuffer = outBuffer;
+      try {
+        finalBuffer = await patchProcessedDoc(outBuffer, data);
+      } catch (patchErr) {
+        // Si falla el parcheo, continuar con outBuffer
+        console.error("[exportExamenRealizadoPdf] parcheo falló, usando documento procesado directo:", patchErr?.message);
+      }
+
+      // Opcional: aplanar los w:sdt a su contenido para mejorar la compatibilidad de layout en PDF
+      const flattenSdt = async (docBuffer) => {
+        try {
+          const zip = await JSZip.loadAsync(docBuffer);
+          const files = ["word/document.xml", "word/footnotes.xml", "word/endnotes.xml"];
+          Object.keys(zip.files).forEach((p) => {
+            if (/^word\/header[0-9]*\.xml$/.test(p) || /^word\/footer[0-9]*\.xml$/.test(p)) files.push(p);
+          });
+          for (const fpath of files) {
+            const file = zip.file(fpath);
+            if (!file) continue;
+            let content = await file.async("string");
+            // Reemplazar cada bloque <w:sdt>...<w:sdtContent>...</w:sdtContent>...</w:sdt> por su contenido
+            content = content.replace(/<w:sdt[\s\S]*?<w:sdtContent>([\s\S]*?)<\/w:sdtContent>[\s\S]*?<\/w:sdt>/g, '$1');
+            zip.file(fpath, content);
+          }
+          return Buffer.from(await zip.generateAsync({ type: "nodebuffer" }));
+        } catch (e) {
+          console.warn("[exportExamenRealizadoPdf] flattenSdt falló:", e?.message);
+          return docBuffer;
+        }
+      };
+
+      try {
+        finalBuffer = await flattenSdt(finalBuffer);
+      } catch (_) { /* continuar sin aplanar */ }
+
+      // Guardar DOCX final en temp para convertir
       const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "docx-"));
       const docxPath = path.join(tmpDir, `Examen_${id}.docx`);
       const pdfPath = path.join(tmpDir, `Examen_${id}.pdf`);
-      fs.writeFileSync(docxPath, outBuffer);
+  fs.writeFileSync(docxPath, finalBuffer);
 
       // Resolver ruta de LibreOffice (soffice). Preferir .com en Windows (modo consola)
       const sofficeCandidatesRaw = [
@@ -829,7 +944,8 @@ exports.exportExamenRealizadoPdf = (req, res) => {
       });
 
       const runSoffice = (bin, cb) => {
-        const args = ["--headless", "--convert-to", "pdf", "--outdir", tmpDir, docxPath];
+        // Usar filtro explícito de Writer para mejorar consistencia
+        const args = ["--headless", "--convert-to", "pdf:writer_pdf_Export", "--outdir", tmpDir, docxPath];
         execFile(bin, args, { windowsHide: true }, (error, stdout, stderr) => {
           if (error) {
             console.error(`[exportExamenRealizadoPdf] fallo con ${bin}:`, error?.message);
@@ -854,7 +970,13 @@ exports.exportExamenRealizadoPdf = (req, res) => {
           // Leer PDF y responder
           try {
             const pdfBuf = fs.readFileSync(pdfPath);
-            res.set({ "Content-Type": "application/pdf", "Content-Disposition": `inline; filename=Examen_${id}.pdf` });
+            // Nombre de archivo alineado: Paciente - Examen - Fecha
+            const safe = (s) => String(s || "").replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim();
+            const fechaYMD = row.created_at
+              ? (row.created_at.toISOString ? row.created_at.toISOString().slice(0,10) : String(row.created_at).slice(0,10))
+              : "";
+            const fileName = `${safe(row.paciente_nombre)} ${safe(row.paciente_apellido)} - ${safe(row.titulo_examen)} - ${safe(fechaYMD)}.pdf`;
+            res.set({ "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="${fileName}"` });
             res.send(pdfBuf);
           } catch (e) {
             res.status(500).json({ error: "Conversión a PDF fallida" });
