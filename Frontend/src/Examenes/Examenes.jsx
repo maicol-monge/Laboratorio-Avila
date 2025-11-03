@@ -53,6 +53,39 @@ function Examenes() {
     return ex ? ex.titulo_examen : id;
   };
 
+  // Función para exportar examen realizado a .docx
+  const exportExamen = async (id) => {
+    try {
+      const res = await axios.get(
+        `http://localhost:5000/api/examenes_realizados/${id}/export`,
+        {
+          responseType: "blob",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }
+      );
+
+      // Crear blob y forzar descarga
+      const blob = new Blob([res.data], {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `examen_${id}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Error exportando examen:", err);
+      alert(
+        "Error al exportar el examen. Revisa la consola del navegador y el servidor."
+      );
+    }
+  };
+
   return (
     <div
       style={{
@@ -119,16 +152,24 @@ function Examenes() {
                       <td>{getPacienteNombre(ex.id_paciente)}</td>
                       <td>{getExamenNombre(ex.id_examen)}</td>
                       <td>
-                        <button
-                          className="btn btn-outline-info btn-sm"
-                          onClick={() =>
-                            navigate(
-                              `/editar-examen-realizado/${ex.id_examen_realizado}`
-                            )
-                          }
-                        >
-                          Ver/Editar
-                        </button>
+                        <div className="d-flex gap-2">
+                          <button
+                            className="btn btn-outline-info btn-sm"
+                            onClick={() =>
+                              navigate(
+                                `/editar-examen-realizado/${ex.id_examen_realizado}`
+                              )
+                            }
+                          >
+                            Ver/Editar
+                          </button>
+                          <button
+                            className="btn btn-outline-success btn-sm"
+                            onClick={() => exportExamen(ex.id_examen_realizado)}
+                          >
+                            Exportar
+                          </button>
+                        </div>
                       </td>
                       <td>{ex.estado === "1" ? "Activo" : "Inactivo"}</td>
                       <td>{ex.created_at?.slice(0, 10)}</td>

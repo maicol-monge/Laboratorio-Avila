@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import ExamenOrina from "../components/TiposExamenes/ExamenOrina";
 import ExamenQuimicaBasica from "../components/TiposExamenes/ExamenQuimicaBasica";
@@ -39,7 +40,9 @@ const componentesExamen = {
 };
 
 export default function RealizarExamen() {
-  const [selectedPlantilla, setSelectedPlantilla] = useState(nombresExamenes[0]);
+  const [selectedPlantilla, setSelectedPlantilla] = useState(
+    nombresExamenes[0]
+  );
   const [form, setForm] = useState({});
   const [examenes, setExamenes] = useState([]);
   const [selectedExamenId, setSelectedExamenId] = useState("");
@@ -47,6 +50,7 @@ export default function RealizarExamen() {
   const [selectedPaciente, setSelectedPaciente] = useState("");
   const [listado, setListado] = useState([]);
   const [editIndex, setEditIndex] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     axios
@@ -117,17 +121,25 @@ export default function RealizarExamen() {
   const handleFinalizar = async () => {
     try {
       for (const examen of listado) {
+        // Asegurarse de incluir tipo_muestra dentro del objeto diagnostico
+        const diagnosticoToSend = {
+          ...(examen.diagnostico || {}),
+          tipo_muestra: examen.tipo_muestra || "",
+        };
+
         await axios.post(
           "http://localhost:5000/api/examenes_realizados",
           {
             id_paciente: examen.id_paciente,
             id_examen: examen.id_examen,
-            tipo_muestra: examen.tipo_muestra,
-            diagnostico: JSON.stringify(examen.diagnostico),
+            // el backend guarda `diagnostico` como JSON string; meter ahí tipo_muestra
+            diagnostico: JSON.stringify(diagnosticoToSend),
             estado: "1",
           },
           {
-            headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+            },
           }
         );
       }
@@ -135,6 +147,8 @@ export default function RealizarExamen() {
       setListado([]);
       setForm({});
       setEditIndex(null);
+      // Redirigir a la vista de exámenes realizados
+      navigate("/examenes");
     } catch (err) {
       alert("Error al guardar los exámenes");
     }
@@ -177,7 +191,9 @@ export default function RealizarExamen() {
             <div style={{ marginTop: 32 }}>
               <h5 style={{ color: "#00C2CC" }}>Exámenes en listado</h5>
               {listado.length === 0 && (
-                <div style={{ color: "#888", fontSize: 14 }}>No hay exámenes guardados.</div>
+                <div style={{ color: "#888", fontSize: 14 }}>
+                  No hay exámenes guardados.
+                </div>
               )}
               {listado.map((ex, idx) => (
                 <div
@@ -194,7 +210,8 @@ export default function RealizarExamen() {
                   }}
                 >
                   <div>
-                    <b>{ex.plantilla}</b> {ex.tipo_muestra && `| Muestra: ${ex.tipo_muestra}`}
+                    <b>{ex.plantilla}</b>{" "}
+                    {ex.tipo_muestra && `| Muestra: ${ex.tipo_muestra}`}
                   </div>
                   <div>
                     <button
