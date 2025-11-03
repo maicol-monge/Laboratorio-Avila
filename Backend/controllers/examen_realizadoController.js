@@ -155,6 +155,19 @@ exports.exportExamenRealizado = (req, res) => {
       diagnostico = {};
     }
 
+    // Helper de fecha dd-mm-aaaa para contenido y nombres
+    const formatFechaDMY = (val) => {
+      try {
+        const d = val && val.toISOString ? new Date(val) : new Date(String(val));
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yyyy = String(d.getFullYear());
+        return `${dd}-${mm}-${yyyy}`;
+      } catch {
+        return String(val || '');
+      }
+    };
+
     // Construir el objeto de datos que mapeará a los Content Controls
     const data = {
       paciente: `${row.paciente_nombre || ""} ${
@@ -396,11 +409,8 @@ exports.exportExamenRealizado = (req, res) => {
         diagnostico.sangre_oculta ||
         diagnostico.sangreOculta ||
         "",
-      fecha: row.created_at
-        ? row.created_at.toISOString
-          ? row.created_at.toISOString().slice(0, 10)
-          : String(row.created_at).slice(0, 10)
-        : "",
+      // Mostrar la fecha en dd-mm-aaaa dentro del documento
+      fecha: row.created_at ? formatFechaDMY(row.created_at) : "",
     };
 
     // Elegir plantilla automáticamente según el título del examen (no pedir al usuario)
@@ -731,6 +741,17 @@ exports.exportExamenRealizadoPdf = (req, res) => {
     const row = results[0];
     let diagnostico = {};
     try { diagnostico = row.diagnostico ? JSON.parse(row.diagnostico) : {}; } catch (_) { diagnostico = {}; }
+    // Helper de fecha dd-mm-aaaa para contenido
+    const formatFechaDMY = (val) => {
+      try {
+        const d = val && val.toISOString ? new Date(val) : new Date(String(val));
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yyyy = String(d.getFullYear());
+        return `${dd}-${mm}-${yyyy}`;
+      } catch { return String(val || ''); }
+    };
+
     // Reutilizar el mismo mapeo de datos que exportExamenRealizado para asegurar paridad en PDF
     const data = {
       paciente: `${row.paciente_nombre || ""} ${row.paciente_apellido || ""}`.trim(),
@@ -808,7 +829,8 @@ exports.exportExamenRealizadoPdf = (req, res) => {
       polimorfonucleares: (diagnostico.pam && diagnostico.pam.polimorfonucleares) || diagnostico.polimorfonucleares || "",
       mononucleares: (diagnostico.pam && diagnostico.pam.mononucleares) || diagnostico.mononucleares || "",
       helicobacter_pylori: diagnostico.helicobacter_pylori || diagnostico.helicobacter || diagnostico.helicobacter_pylori || "",
-      fecha: row.created_at ? (row.created_at.toISOString ? row.created_at.toISOString().slice(0, 10) : String(row.created_at).slice(0, 10)) : "",
+      // Mostrar fecha en dd-mm-aaaa dentro del documento
+      fecha: row.created_at ? formatFechaDMY(row.created_at) : "",
     };
 
     const plantillasDir = path.join(__dirname, "..", "..", "Frontend", "src", "plantillasExamenes");
