@@ -7,6 +7,7 @@ export default function ExamenHDLQuimica({
   pacientes,
   selectedPaciente,
   setSelectedPaciente,
+  lockPaciente,
 }) {
   const handleChange = (e, field) => {
     setForm({
@@ -23,6 +24,7 @@ export default function ExamenHDLQuimica({
         pacientes={pacientes}
         selectedPaciente={selectedPaciente}
         setSelectedPaciente={setSelectedPaciente}
+        lockPaciente={lockPaciente}
       />
       {/* Tabla de resultados */}
       <table className="table table-bordered" style={{ marginTop: 16 }}>

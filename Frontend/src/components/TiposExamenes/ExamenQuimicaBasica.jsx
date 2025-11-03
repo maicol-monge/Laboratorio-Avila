@@ -8,6 +8,7 @@ export default function ExamenQuimicaBasica({
   pacientes = [],
   selectedPaciente,
   setSelectedPaciente,
+  lockPaciente,
 }) {
   // Helper para actualizar campos
   const handleChange = (e, field) => {
@@ -26,6 +27,7 @@ export default function ExamenQuimicaBasica({
         pacientes={pacientes}
         selectedPaciente={selectedPaciente}
         setSelectedPaciente={setSelectedPaciente}
+        lockPaciente={lockPaciente}
       />
       {/* Tabla de resultados */}
       <table className="table table-bordered" style={{ marginTop: 16 }}>

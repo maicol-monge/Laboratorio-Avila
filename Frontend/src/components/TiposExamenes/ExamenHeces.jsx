@@ -7,6 +7,7 @@ export default function ExamenHeces({
   pacientes,
   selectedPaciente,
   setSelectedPaciente,
+  lockPaciente,
 }) {
   const handleChange = (e, section, field) => {
     if (section) {
@@ -36,6 +37,7 @@ export default function ExamenHeces({
         pacientes={pacientes}
         selectedPaciente={selectedPaciente}
         setSelectedPaciente={setSelectedPaciente}
+        lockPaciente={lockPaciente}
       />
 
       <div

@@ -1,6 +1,8 @@
 const db = require("../config/db");
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
+const { execFile } = require("child_process");
 const { TemplateHandler } = require("easy-template-x");
 const JSZip = require("jszip");
 
@@ -31,7 +33,7 @@ exports.addExamenRealizado = (req, res) => {
 
 // Obtener exámenes realizados
 exports.getExamenesRealizados = (req, res) => {
-  db.query("SELECT * FROM examen_realizado", (err, results) => {
+  db.query("SELECT * FROM examen_realizado WHERE estado = '1'", (err, results) => {
     if (err) {
       return res
         .status(500)
@@ -55,7 +57,7 @@ exports.getExamenesRealizados = (req, res) => {
 exports.getExamenRealizadoById = (req, res) => {
   const { id } = req.params;
   db.query(
-    "SELECT * FROM examen_realizado WHERE id_examen_realizado = ?",
+    "SELECT * FROM examen_realizado WHERE id_examen_realizado = ? AND estado = '1'",
     [id],
     (err, results) => {
       if (err) {
@@ -104,7 +106,7 @@ exports.updateExamenRealizado = (req, res) => {
 exports.deleteExamenRealizado = (req, res) => {
   const { id } = req.params;
   db.query(
-    "DELETE FROM examen_realizado WHERE id_examen_realizado = ?",
+    "UPDATE examen_realizado SET estado = '0' WHERE id_examen_realizado = ?",
     [id],
     (err, results) => {
       if (err) {
@@ -685,6 +687,190 @@ exports.exportExamenRealizado = (req, res) => {
         error: "Error al generar el archivo .docx",
         details: e.message || e.toString(),
       });
+    }
+  });
+};
+
+// Exportar examen realizado a PDF, convirtiendo desde DOCX con LibreOffice (soffice)
+exports.exportExamenRealizadoPdf = (req, res) => {
+  const { id } = req.params;
+
+  // Reutilizamos casi todo el flujo de exportExamenRealizado para generar el DOCX en memoria
+  const sql = `SELECT er.*, p.nombre AS paciente_nombre, p.apellido AS paciente_apellido, p.edad AS paciente_edad, p.sexo AS paciente_sexo, e.titulo_examen
+                 FROM examen_realizado er
+                 JOIN paciente p ON er.id_paciente = p.id_paciente
+                 JOIN examen e ON er.id_examen = e.id_examen
+                 WHERE er.id_examen_realizado = ?`;
+
+  db.query(sql, [id], async (err, results) => {
+    if (err) return res.status(500).json({ error: "Error al obtener el examen realizado" });
+    if (!results || !results[0]) return res.status(404).json({ error: "Examen no encontrado" });
+
+    const row = results[0];
+    let diagnostico = {};
+    try { diagnostico = row.diagnostico ? JSON.parse(row.diagnostico) : {}; } catch (_) { diagnostico = {}; }
+
+    const data = {
+      paciente: `${row.paciente_nombre || ""} ${row.paciente_apellido || ""}`.trim(),
+      edad: diagnostico.edad || row.paciente_edad || "",
+      sexo: diagnostico.sexo || row.paciente_sexo || "",
+      numeroRegistro: diagnostico.numeroRegistro || row.id_examen_realizado || "",
+      tipoMuestra: diagnostico.tipoMuestra || diagnostico.tipo_muestra || "",
+      examen: row.titulo_examen || "",
+      glucosa: (diagnostico.quimico && diagnostico.quimico.glucosa) || diagnostico.glucosa || (diagnostico.glucosa ? diagnostico.glucosa : ""),
+      colesterol: diagnostico.colesterol || diagnostico.colesteros || "",
+      trigliceridos: diagnostico.trigliceridos || "",
+      acido_urico: diagnostico.acido_urico || diagnostico.acidoUrico || "",
+      creatinina: diagnostico.creatinina || "",
+      tgo: diagnostico.tgo || "",
+      tgp: diagnostico.tgp || "",
+      hdl: diagnostico.hdl || "",
+      ldl: diagnostico.ldl || "",
+      nitrogeno_ureico: diagnostico.nitrogeno_ureico || diagnostico.nitrogenoUreico || "",
+      globulos_rojos: diagnostico.globulos_rojos || "",
+      hematocrito: diagnostico.hematocrito || "",
+      hemoglobina: diagnostico.hemoglobina || "",
+      vcm: diagnostico.vcm || "",
+      hcm: diagnostico.hcm || "",
+      chcm: diagnostico.chcm || "",
+      globulos_blancos: diagnostico.globulos_blancos || "",
+      neutrofilos: diagnostico.neutrofilos || "",
+      linfocitos: diagnostico.linfocitos || "",
+      monocitos: diagnostico.monocitos || "",
+      eosinofilos: diagnostico.eosinofilos || "",
+      basofilos: diagnostico.basofilos || "",
+      plaquetas: diagnostico.plaquetas || "",
+      color: (diagnostico.fisico && diagnostico.fisico.color) || diagnostico.color || "",
+      aspecto: (diagnostico.fisico && diagnostico.fisico.aspecto) || diagnostico.aspecto || "",
+      ph: (diagnostico.fisico && diagnostico.fisico.ph) || diagnostico.ph || "",
+      consistencia: (diagnostico.fisico && diagnostico.fisico.consistencia) || diagnostico.consistencia || "",
+      mucus: (diagnostico.fisico && diagnostico.fisico.mucus) || diagnostico.mucus || "",
+      leucocitos: (diagnostico.microscopico && diagnostico.microscopico.leucocitos) || (diagnostico.fisico && diagnostico.fisico.leucocitos) || diagnostico.leucocitos || "",
+      hematies: (diagnostico.microscopico && diagnostico.microscopico.hematies) || (diagnostico.fisico && diagnostico.fisico.hematies) || diagnostico.hematies || "",
+      celulas_escamosas: (diagnostico.microscopico && diagnostico.microscopico.celulas_escamosas) || diagnostico.celulas_escamosas || "",
+      celulas_redondas: (diagnostico.microscopico && diagnostico.microscopico.celulas_redondas) || diagnostico.celulas_redondas || "",
+      cilindros: (diagnostico.microscopico && diagnostico.microscopico.cilindros) || diagnostico.cilindros || "",
+      cristales: (diagnostico.microscopico && diagnostico.microscopico.cristales) || diagnostico.cristales || "",
+      parasitos: (diagnostico.microscopico && diagnostico.microscopico.parasitos) || diagnostico.parasitos || "",
+      otros: (diagnostico.microscopico && diagnostico.microscopico.otros) || diagnostico.otros || "",
+      restos_macroscopicos: (diagnostico.fisico && diagnostico.fisico.restos_macroscopicos) || diagnostico.restos_macroscopicos || "",
+      restos_microscopicos: (diagnostico.fisico && diagnostico.fisico.restos_microscopicos) || diagnostico.restos_microscopicos || "",
+      densidad: (diagnostico.quimico && diagnostico.quimico.densidad) || diagnostico.densidad || "",
+      nitritos: (diagnostico.quimico && diagnostico.quimico.nitritos) || diagnostico.nitritos || "",
+      proteinas: (diagnostico.quimico && diagnostico.quimico.proteinas) || diagnostico.proteinas || "",
+      cuerpos_cetonicos: (diagnostico.quimico && diagnostico.quimico.cuerpos_cetonicos) || diagnostico.cuerpos_cetonicos || "",
+      urobilinogeno: (diagnostico.quimico && diagnostico.quimico.urobilinogeno) || diagnostico.urobilinogeno || "",
+      bilirrubina: (diagnostico.quimico && diagnostico.quimico.bilirrubina) || diagnostico.bilirrubina || "",
+      sangre_oculta: (diagnostico.quimico && diagnostico.quimico.sangre_oculta) || diagnostico.sangre_oculta || diagnostico.sangreOculta || "",
+      activos: (diagnostico.parasitologico && diagnostico.parasitologico.activos) || diagnostico.activos || "",
+      quistes: (diagnostico.parasitologico && diagnostico.parasitologico.quistes) || diagnostico.quistes || "",
+      huevo: (diagnostico.parasitologico && diagnostico.parasitologico.huevo) || diagnostico.huevo || "",
+      larva: (diagnostico.parasitologico && diagnostico.parasitologico.larva) || diagnostico.larva || "",
+      bacterias: (diagnostico.parasitologico && diagnostico.parasitologico.bacterias) || diagnostico.bacterias || "",
+      levaduras: (diagnostico.parasitologico && diagnostico.parasitologico.levaduras) || diagnostico.levaduras || "",
+      tipo_muestra: diagnostico.tipoMuestra || diagnostico.tipo_muestra || "",
+      numero_registro: diagnostico.numeroRegistro || row.id_examen_realizado || "",
+      fecha: row.created_at ? (row.created_at.toISOString ? row.created_at.toISOString().slice(0, 10) : String(row.created_at).slice(0, 10)) : "",
+    };
+
+    const plantillasDir = path.join(__dirname, "..", "..", "Frontend", "src", "plantillasExamenes");
+    const normalize = (s) => String(s || "").toLowerCase().replace(/\s+/g, "").replace(/[^a-z0-9]/g, "");
+    const templateMap = {
+      [normalize("Hp + Egh")]: "HpEgh.docx",
+      [normalize("Hp + Egh+so")]: "HpEghSo.docx",
+      [normalize("Hp + Egh so")]: "HpEghSo.docx",
+      [normalize("hemograma")]: "hemograma.docx",
+      [normalize("transas quimica")]: "TransasQuimica.docx",
+      [normalize("heces+pam")]: "hecesPam.docx",
+      [normalize("heces")]: "heces.docx",
+      [normalize("sustan,ph+egh")]: "SustanPhEgh.docx",
+      [normalize("sustanph+egh")]: "SustanPhEgh.docx",
+      [normalize("sustan phegh")]: "SustanPhEgh.docx",
+      [normalize("(Basi) quimica")]: "BasiQuimica.docx",
+      [normalize("(HDL) quimica")]: "HdlQuimica.docx",
+      [normalize("orina")]: "orina.docx",
+    };
+    const tituloExamen = row.titulo_examen || "";
+    const chosenFile = templateMap[normalize(tituloExamen)] || "HpEgh.docx";
+    const templatePath = path.join(plantillasDir, chosenFile);
+    if (!fs.existsSync(templatePath)) return res.status(500).json({ error: `Plantilla no encontrada en ruta: ${templatePath}` });
+
+    try {
+      const templateBuffer = fs.readFileSync(templatePath);
+      const handler = new TemplateHandler();
+      const outBuffer = await handler.process(templateBuffer, data);
+
+      // Guardar DOCX en temp
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "docx-"));
+      const docxPath = path.join(tmpDir, `Examen_${id}.docx`);
+      const pdfPath = path.join(tmpDir, `Examen_${id}.pdf`);
+      fs.writeFileSync(docxPath, outBuffer);
+
+      // Resolver ruta de LibreOffice (soffice). Preferir .com en Windows (modo consola)
+      const sofficeCandidatesRaw = [
+        process.env.LIBREOFFICE_PATH,               // Ruta establecida por variable de entorno
+        process.env.LIBREOFFICE_BIN,                // Alternativa
+        "soffice",                                 // En PATH
+        // Rutas típicas de Windows (x64 y x86)
+        "C:/Program Files/LibreOffice/program/soffice.com",
+        "C:/Program Files/LibreOffice/program/soffice.exe",
+        "C:/Program Files (x86)/LibreOffice/program/soffice.com",
+        "C:/Program Files (x86)/LibreOffice/program/soffice.exe",
+      ].filter(Boolean);
+
+      // Si el valor se ve como ruta absoluta, validar existencia; si no existe, omitir.
+      const isAbsolutePath = (p) => typeof p === 'string' && (/^[A-Za-z]:\//.test(p) || p.startsWith("/"));
+      const sofficeCandidates = sofficeCandidatesRaw.filter((bin) => {
+        if (!bin) return false;
+        if (isAbsolutePath(bin)) {
+          try { return fs.existsSync(bin); } catch { return false; }
+        }
+        return true; // nombres en PATH (p.ej. "soffice")
+      });
+
+      const runSoffice = (bin, cb) => {
+        const args = ["--headless", "--convert-to", "pdf", "--outdir", tmpDir, docxPath];
+        execFile(bin, args, { windowsHide: true }, (error, stdout, stderr) => {
+          if (error) {
+            console.error(`[exportExamenRealizadoPdf] fallo con ${bin}:`, error?.message);
+            if (stderr) console.error(`[exportExamenRealizadoPdf] stderr:`, stderr.toString());
+          }
+          cb(error, stdout, stderr);
+        });
+      };
+
+      const triedBins = [];
+      const tryNext = (idx = 0) => {
+        if (idx >= sofficeCandidates.length) {
+          console.error("[exportExamenRealizadoPdf] No se pudo encontrar/ejecutar LibreOffice. Probados:", triedBins);
+          return res.status(500).json({
+            error: "No se pudo convertir a PDF. Instale LibreOffice o configure la variable de entorno LIBREOFFICE_PATH apuntando a soffice(.com).",
+          });
+        }
+        const bin = sofficeCandidates[idx];
+        triedBins.push(bin);
+        runSoffice(bin, (error) => {
+          if (error) return tryNext(idx + 1);
+          // Leer PDF y responder
+          try {
+            const pdfBuf = fs.readFileSync(pdfPath);
+            res.set({ "Content-Type": "application/pdf", "Content-Disposition": `inline; filename=Examen_${id}.pdf` });
+            res.send(pdfBuf);
+          } catch (e) {
+            res.status(500).json({ error: "Conversión a PDF fallida" });
+          } finally {
+            // limpieza best-effort
+            setTimeout(() => {
+              try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch (_) {}
+            }, 5000);
+          }
+        });
+      };
+
+      tryNext();
+    } catch (e) {
+      console.error("Error generando PDF:", e);
+      return res.status(500).json({ error: "Error al generar el PDF" });
     }
   });
 };

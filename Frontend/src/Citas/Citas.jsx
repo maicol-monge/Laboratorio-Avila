@@ -253,6 +253,14 @@ export default function Citas() {
 		return null;
 	})();
 
+	// Si el paciente es menor de 18 años, ocultamos el campo DUI y limpiamos su valor
+	useEffect(() => {
+		const isAdult = (quickEdadLocal !== null && quickEdadLocal >= 18) || (!quickForm.fecha_nacimiento && quickForm.edad !== '' && Number(quickForm.edad) >= 18);
+		if (!isAdult && quickForm.dui) {
+			setQuickForm(q => ({ ...q, dui: '' }));
+		}
+	}, [quickEdadLocal, quickForm.fecha_nacimiento, quickForm.edad]);
+
 	useEffect(() => {
 		fetchCitas();
 	}, []);
@@ -460,6 +468,9 @@ export default function Citas() {
 						fecha_nacimiento: quickFechaISO,
 					};
 					if (!body.fecha_nacimiento && quickForm.edad) body.edad = Number(quickForm.edad);
+						// incluir DUI solo si el paciente es mayor de edad y se ingresó
+						const isAdultQuick = (quickEdadLocal !== null && quickEdadLocal >= 18) || (!quickForm.fecha_nacimiento && quickForm.edad && Number(quickForm.edad) >= 18);
+						if (isAdultQuick && quickForm.dui) body.dui = quickForm.dui;
 					const res = await api.post('/api/pacientes', body);
 					pacienteId = res.data?.id_paciente || res.data?.insertId || null;
 					setCreatingQuick(false);
@@ -586,6 +597,10 @@ if (horaNormalized < svMinTime) {
 			fecha_nacimiento: quickForm.fecha_nacimiento || null,
 		};
 		if (!body.fecha_nacimiento && quickForm.edad) body.edad = Number(quickForm.edad);
+
+			// incluir DUI si es mayor de edad y se ingresó
+			const isAdultQuick2 = (quickEdadLocal !== null && quickEdadLocal >= 18) || (!quickForm.fecha_nacimiento && quickForm.edad && Number(quickForm.edad) >= 18);
+			if (isAdultQuick2 && quickForm.dui) body.dui = quickForm.dui;
 
 		api.post('/api/pacientes', body)
 			.then(res => {
@@ -1013,22 +1028,12 @@ async function handleFinalizar(id) {
 													</div>
 												)}
                                                 
-												{(quickEdadLocal !== null && quickEdadLocal >= 18) || (!quickForm.fecha_nacimiento && quickForm.edad !== '' && Number(quickForm.edad) >= 18) ? (
+												{(((quickEdadLocal !== null) && quickEdadLocal >= 18) || (!quickForm.fecha_nacimiento && quickForm.edad !== '' && Number(quickForm.edad) >= 18)) && (
 													<div className="col-md-6 mb-2">
 														<input
 															name="dui"
 															className="form-control"
 															placeholder="DUI (########-#)"
-															value={quickForm.dui}
-															onChange={e => setQuickForm({ ...quickForm, dui: formatDuiInput(e.target.value) })}
-														/>
-													</div>
-												) : (
-													<div className="col-md-6 mb-2">
-														<input
-															name="dui"
-															className="form-control"
-															placeholder="DUI (opcional)"
 															value={quickForm.dui}
 															onChange={e => setQuickForm({ ...quickForm, dui: formatDuiInput(e.target.value) })}
 														/>
@@ -1047,7 +1052,18 @@ async function handleFinalizar(id) {
 									)}
 									<div className="mb-3">
 										<label className="form-label">Fecha</label>
-										<input ref={fechaInputRef} type="date" className="form-control" value={form.fecha_cita} onChange={e => setForm({ ...form, fecha_cita: e.target.value })} />
+										<DatePicker
+											selected={form?.fecha_cita ? parseYMDToLocalDate(form.fecha_cita) : null}
+											onChange={(date) => setForm({ ...form, fecha_cita: date ? getYMD(date) : '' })}
+											dateFormat="dd-MM-yyyy"
+											className="form-control"
+											placeholderText="Seleccionar fecha"
+											autoFocus={!editingId}
+											minDate={!editingId ? (svMinDate ? parseYMDToLocalDate(svMinDate) : undefined) : undefined}
+											filterDate={!editingId ? ((d) => d.getDay() !== 0) : undefined}
+											isClearable={false}
+										/>
+										<div className="form-text">No se permiten domingos ni días pasados.</div>
 									</div>
 									<div className="mb-3">
 										<label className="form-label">Hora</label>
