@@ -52,7 +52,7 @@ Para efectos de depuración: imprime la contraseña recibida y su hash (solo par
                 nombre_usuario: user.nombre_usuario,
                 rol: user.rol
             };
-            const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "2h" });
+            const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "10h" });
 
             return res.status(200).json({
                 message: "Inicio de sesión exitoso",
@@ -186,7 +186,7 @@ exports.recuperarPassword = (req, res) => {
                 });
 
                 const mailOptions = {
-                    from: process.env.EMAIL_USER,
+                    from: "Laboratorio Clínico Ávila <laboratorio.clinico.avila.sv@gmail.com>",
                     to: usuario.correo,
                     subject: "Recuperación de Contraseña",
                     html: `

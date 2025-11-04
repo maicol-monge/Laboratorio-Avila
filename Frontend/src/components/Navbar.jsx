@@ -17,7 +17,9 @@ export default function Navbar() {
       className="d-flex flex-column flex-shrink-0 p-3"
       style={{
         width: "250px",
-        minHeight: "100vh",
+        height: "100vh",
+        overflowY: "auto",
+        overflowX: "hidden",
         backgroundColor: "#FFFFFF",
         borderRight: "1px solid #e0e0e0",
         position: "fixed",
@@ -66,6 +68,18 @@ export default function Navbar() {
             Exámenes
           </Link>
         </li>
+
+
+        <li className="nav-item mb-2">
+          <Link
+            to="/Pagos"
+            className={`nav-link d-flex align-items-center text-dark py-2 custom-link ${location.pathname.startsWith('/Pagos') ? 'active' : ''}`}
+          >
+            <i className="bi bi-cash-coin fs-4 me-3"></i>
+            Pagos
+          </Link>
+        </li>
+        
         <li className="nav-item mb-2">
           <Link
             to="/inventario"
@@ -76,6 +90,8 @@ export default function Navbar() {
           </Link> 
 
         </li>
+        
+
         
         <li className="nav-item mb-2">
           <Link

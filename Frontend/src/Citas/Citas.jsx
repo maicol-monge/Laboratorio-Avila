@@ -22,8 +22,28 @@ export default function Citas() {
 	const [quickMode, setQuickMode] = useState(false);
 
 	const token = localStorage.getItem('token');
-	const [svMinDate, setSvMinDate] = useState(null);
-	const [svMinTime, setSvMinTime] = useState(null);
+		// helper to get YYYY-MM-DD from a Date (used by SV helpers)
+		const getYMD = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+		// helper to get current time in El Salvador (UTC-6)
+		const getSVNow = (d = new Date()) => {
+			const utcMs = d.getTime() + d.getTimezoneOffset() * 60000;
+			const svMs = utcMs + (-6 * 3600000);
+			return new Date(svMs);
+		};
+
+		// default SV today and one week ahead (YYYY-MM-DD)
+		const svTodayYMD = getYMD(getSVNow());
+		const svWeekYMD = getYMD(new Date(getSVNow().getTime() + 7 * 24 * 3600000));
+
+
+
+	const [svMinDate, setSvMinDate] = useState(svTodayYMD);
+	const [svMinTime, setSvMinTime] = useState(() => {
+		const sv = getSVNow();
+		const pad = n => String(n).padStart(2, '0');
+		return `${pad(sv.getHours())}:${pad(sv.getMinutes())}:${pad(sv.getSeconds())}`;
+	});
 
 	const [horaH, setHoraH] = useState('');
 	const [horaM, setHoraM] = useState('');
@@ -37,12 +57,11 @@ export default function Citas() {
 	const fechaInputRef = useRef(null);
 
 	// filtros: fecha inicio, fecha fin, estado
-	const getYMD = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-	const todayYMD = getYMD(new Date());
 	const weekYMD = getYMD(new Date(Date.now() + 7 * 24 * 3600 * 1000));
-	const [filterStartDate, setFilterStartDate] = useState('');
-	const [filterEndDate, setFilterEndDate] = useState('');
-	const [filterEstado, setFilterEstado] = useState(''); // por defecto 1 - Pendiente
+	// filtros: por defecto desde hoy (SV) hasta una semana en el futuro, estado Pendiente
+	const [filterStartDate, setFilterStartDate] = useState(svTodayYMD);
+	const [filterEndDate, setFilterEndDate] = useState(svWeekYMD);
+	const [filterEstado, setFilterEstado] = useState('1'); // por defecto 1 - Pendiente
 
 	const navigate = useNavigate();
 	const location = useLocation();
@@ -132,6 +151,36 @@ export default function Citas() {
 		}
 	}
 
+	// parse a YYYY-MM-DD into a local Date object (avoid timezone shift)
+	function parseYMDToLocalDate(ymd) {
+		if (!ymd) return null;
+		const parts = ymd.split('-');
+		if (parts.length !== 3) return null;
+		const y = Number(parts[0]);
+		const m = Number(parts[1]) - 1;
+		const d = Number(parts[2]);
+		return new Date(y, m, d);
+	}
+
+	// render various date inputs as dd-MM-yyyy for display
+	function formatFecha(val) {
+		if (!val && val !== 0) return '-';
+		try {
+			const s = String(val);
+			// prefer extracting YYYY-MM-DD if present
+			const m = s.match(/(\d{4})-(\d{2})-(\d{2})/);
+			if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+			const d = new Date(val);
+			if (isNaN(d.getTime())) return '-';
+			const dd = String(d.getDate()).padStart(2, '0');
+			const mm = String(d.getMonth() + 1).padStart(2, '0');
+			const yyyy = d.getFullYear();
+			return `${dd}-${mm}-${yyyy}`;
+		} catch (e) {
+			return '-';
+		}
+	}
+
 	// Helpers reused from Pacientes.jsx: format phone/dui and validate quick patient form
 	function formatTelefonoInput(value) {
 		return value.replace(/\D/g, '').slice(0, 8).replace(/(\d{4})(\d{0,4})/, '$1-$2');
@@ -204,6 +253,14 @@ export default function Citas() {
 		return null;
 	})();
 
+	// Si el paciente es menor de 18 años, ocultamos el campo DUI y limpiamos su valor
+	useEffect(() => {
+		const isAdult = (quickEdadLocal !== null && quickEdadLocal >= 18) || (!quickForm.fecha_nacimiento && quickForm.edad !== '' && Number(quickForm.edad) >= 18);
+		if (!isAdult && quickForm.dui) {
+			setQuickForm(q => ({ ...q, dui: '' }));
+		}
+	}, [quickEdadLocal, quickForm.fecha_nacimiento, quickForm.edad]);
+
 	useEffect(() => {
 		fetchCitas();
 	}, []);
@@ -275,9 +332,50 @@ export default function Citas() {
 		}
 	}
 
+	// Autoseleccionar cuando la búsqueda produce exactamente una coincidencia
+	useEffect(() => {
+		// Solo aplicar autoselección si no estamos editando
+		if (editingId) return;
+		
+		const q = (pacienteQuery || "").trim().toLowerCase();
+		if (!q) return; // no modificar selección si no hay búsqueda
+
+		const matches = pacientes.filter((p) => {
+			const name = `${p.nombre || ""} ${p.apellido || ""}`.toLowerCase();
+			const dui = (p.dui || "").toLowerCase();
+			const qDigits = q.replace(/\D/g, "");
+			return (
+				name.includes(q) ||
+				dui.includes(q) ||
+				(qDigits && (p.dui || "").replace(/\D/g, "").includes(qDigits))
+			);
+		});
+
+		if (matches.length === 1) {
+			const m = matches[0];
+			if (String(form.id_paciente) !== String(m.id_paciente)) {
+				setForm(prev => ({ ...prev, id_paciente: String(m.id_paciente) }));
+				// No establecer editingPacienteLabel aquí para que siga mostrando el select
+			}
+		} else if (matches.length > 1) {
+			// si existen varias coincidencias y la selección actual no está entre ellas,
+			// limpiar la selección para que el usuario elija explícitamente
+			const inMatches = matches.some((m) => String(m.id_paciente) === String(form.id_paciente));
+			if (!inMatches && !editingId) {
+				setForm(prev => ({ ...prev, id_paciente: '' }));
+			}
+		} else if (matches.length === 0) {
+			// Si no hay matches y había algo seleccionado por autoselección, limpiar
+			if (form.id_paciente && !editingPacienteLabel) {
+				setForm(prev => ({ ...prev, id_paciente: '' }));
+			}
+		}
+	}, [pacienteQuery, pacientes, form.id_paciente, editingId, editingPacienteLabel]);
+
 	async function openNew() {
-		setForm({ id_paciente: '', fecha_cita: '', hora_cita: '', observaciones: '' });
+		setForm({ id_paciente: '', fecha_cita: '', hora_cita: '', observaciones: '', estado: '1' });
 		setEditingPacienteLabel('');
+		setPacienteQuery(''); // Limpiar búsqueda al abrir modal nuevo
 		// si venimos con preselectPacienteId, intentar cargar y fijar el paciente
 		if (preselectPacienteIdFromLocation) {
 			try {
@@ -304,7 +402,7 @@ export default function Citas() {
 		setSvMinTime(svTime);
 		// por defecto, preseleccionar la fecha de hoy (SV) y hora actual (HH:MM)
 		const defaultHM = svTime.slice(0,5);
-		setForm(f => ({ ...f, fecha_cita: svDate, hora_cita: defaultHM }));
+		setForm(f => ({ ...f, fecha_cita: svDate, hora_cita: defaultHM, estado: '1' }));
 		setHoraH(defaultHM.slice(0,2));
 		setHoraM(defaultHM.slice(3,5));
 		setEditingId(null);
@@ -411,6 +509,9 @@ export default function Citas() {
 						fecha_nacimiento: quickFechaISO,
 					};
 					if (!body.fecha_nacimiento && quickForm.edad) body.edad = Number(quickForm.edad);
+						// incluir DUI solo si el paciente es mayor de edad y se ingresó
+						const isAdultQuick = (quickEdadLocal !== null && quickEdadLocal >= 18) || (!quickForm.fecha_nacimiento && quickForm.edad && Number(quickForm.edad) >= 18);
+						if (isAdultQuick && quickForm.dui) body.dui = quickForm.dui;
 					const res = await api.post('/api/pacientes', body);
 					pacienteId = res.data?.id_paciente || res.data?.insertId || null;
 					setCreatingQuick(false);
@@ -537,6 +638,10 @@ if (horaNormalized < svMinTime) {
 			fecha_nacimiento: quickForm.fecha_nacimiento || null,
 		};
 		if (!body.fecha_nacimiento && quickForm.edad) body.edad = Number(quickForm.edad);
+
+			// incluir DUI si es mayor de edad y se ingresó
+			const isAdultQuick2 = (quickEdadLocal !== null && quickEdadLocal >= 18) || (!quickForm.fecha_nacimiento && quickForm.edad && Number(quickForm.edad) >= 18);
+			if (isAdultQuick2 && quickForm.dui) body.dui = quickForm.dui;
 
 		api.post('/api/pacientes', body)
 			.then(res => {
@@ -682,22 +787,22 @@ async function handleFinalizar(id) {
 					<div className="d-flex flex-column">
 					<label className="form-label small mb-1">Desde</label>
 					<DatePicker
-						selected={filterStartDate ? new Date(filterStartDate) : null}
-						onChange={date => setFilterStartDate(date?.toISOString().split('T')[0] || '')}
+						selected={filterStartDate ? parseYMDToLocalDate(filterStartDate) : null}
+						onChange={date => setFilterStartDate(date ? getYMD(date) : '')}
 						className="form-control form-control-sm border-info"
 						placeholderText="Seleccionar fecha"
-						dateFormat="yyyy-MM-dd"
+						dateFormat="dd-MM-yyyy"
 						isClearable
 					/>
 					</div>
 					<div className="d-flex flex-column">
 					<label className="form-label small mb-1">Hasta</label>
 					<DatePicker
-						selected={filterEndDate ? new Date(filterEndDate) : null}
-						onChange={date => setFilterEndDate(date?.toISOString().split('T')[0] || '')}
+						selected={filterEndDate ? parseYMDToLocalDate(filterEndDate) : null}
+						onChange={date => setFilterEndDate(date ? getYMD(date) : '')}
 						className="form-control form-control-sm border-info"
 						placeholderText="Seleccionar fecha"
-						dateFormat="yyyy-MM-dd"
+						dateFormat="dd-MM-yyyy"
 						isClearable
 					/>
 					</div>
@@ -719,9 +824,9 @@ async function handleFinalizar(id) {
 				<button
 					className="btn btn-sm btn-info text-white"
 					onClick={() => {
-					setFilterStartDate('');
-					setFilterEndDate('');
-					setFilterEstado('');
+					setFilterStartDate(svTodayYMD);
+					setFilterEndDate(svWeekYMD);
+					setFilterEstado('1');
 					}}
 				>
 					Limpiar
@@ -754,7 +859,7 @@ async function handleFinalizar(id) {
 										<tr key={c.id_cita}>
 											<td>{c.id_cita}</td>
 											<td>{c.nombre ? `${c.nombre} ${c.apellido}` : '-'}</td>
-											<td>{c.fecha_cita ? new Date(c.fecha_cita).toLocaleDateString() : '-'}</td>
+											<td>{c.fecha_cita ? formatFecha(c.fecha_cita) : '-'}</td>
 											<td>{formatHora(c.hora_cita)}</td>
 											<td>{c.estado === '1' ? 'Pendiente' : c.estado === '2' ? 'Atendida' : 'Cancelada'}</td>
 											<td>
@@ -853,8 +958,8 @@ async function handleFinalizar(id) {
                                         <div>
                                             {/* ocultar toggle si ya hay paciente preseleccionado */}
                                             {!editingId && !form.id_paciente && (
-                                                <button type="button" className="btn btn-sm btn-outline-secondary me-2" onClick={() => { setQuickMode(q => !q); if (!quickMode) setPacienteQuery(''); }}>
-                                                    {quickMode ? 'Usar select' : 'Crear paciente rápido'}
+                                                <button type="button" className="btn btn-info text-white w-100" onClick={() => { setQuickMode(q => !q); if (!quickMode) setPacienteQuery(''); }}>
+                                                    {quickMode ? 'Seleccionar paciente' : '+ Crear paciente rápido'}
                                                 </button>
                                             )}
                                         </div>
@@ -866,11 +971,11 @@ async function handleFinalizar(id) {
 									<label className="form-label">Paciente</label>
 									<div className="form-control-plaintext">{editingPacienteLabel || (form.id_paciente ? `Paciente #${form.id_paciente}` : '—')}</div>
 								</div>
-							) : form.id_paciente ? (
-								// preseleccionado desde ficha: mostrar como readonly
+							) : (editingPacienteLabel && form.id_paciente) ? (
+								// preseleccionado desde ficha con label: mostrar como readonly
 								<div className="mb-3">
 									<label className="form-label">Paciente</label>
-									<div className="form-control-plaintext">{editingPacienteLabel || (form.id_paciente ? `Paciente #${form.id_paciente}` : '—')}</div>
+									<div className="form-control-plaintext">{editingPacienteLabel}</div>
 								</div>
 							) : (!quickMode && (
 										<div className="mb-3">
@@ -964,22 +1069,12 @@ async function handleFinalizar(id) {
 													</div>
 												)}
                                                 
-												{(quickEdadLocal !== null && quickEdadLocal >= 18) || (!quickForm.fecha_nacimiento && quickForm.edad !== '' && Number(quickForm.edad) >= 18) ? (
+												{(((quickEdadLocal !== null) && quickEdadLocal >= 18) || (!quickForm.fecha_nacimiento && quickForm.edad !== '' && Number(quickForm.edad) >= 18)) && (
 													<div className="col-md-6 mb-2">
 														<input
 															name="dui"
 															className="form-control"
 															placeholder="DUI (########-#)"
-															value={quickForm.dui}
-															onChange={e => setQuickForm({ ...quickForm, dui: formatDuiInput(e.target.value) })}
-														/>
-													</div>
-												) : (
-													<div className="col-md-6 mb-2">
-														<input
-															name="dui"
-															className="form-control"
-															placeholder="DUI (opcional)"
 															value={quickForm.dui}
 															onChange={e => setQuickForm({ ...quickForm, dui: formatDuiInput(e.target.value) })}
 														/>
@@ -998,7 +1093,18 @@ async function handleFinalizar(id) {
 									)}
 									<div className="mb-3">
 										<label className="form-label">Fecha</label>
-										<input ref={fechaInputRef} type="date" className="form-control" value={form.fecha_cita} min={svMinDate || undefined} onChange={e => setForm({ ...form, fecha_cita: e.target.value })} />
+										<DatePicker
+											selected={form?.fecha_cita ? parseYMDToLocalDate(form.fecha_cita) : null}
+											onChange={(date) => setForm({ ...form, fecha_cita: date ? getYMD(date) : '' })}
+											dateFormat="dd-MM-yyyy"
+											className="form-control"
+											placeholderText="Seleccionar fecha"
+											autoFocus={!editingId}
+											minDate={!editingId ? (svMinDate ? parseYMDToLocalDate(svMinDate) : undefined) : undefined}
+											filterDate={!editingId ? ((d) => d.getDay() !== 0) : undefined}
+											isClearable={false}
+										/>
+										<div className="form-text">No se permiten domingos ni días pasados.</div>
 									</div>
 									<div className="mb-3">
 										<label className="form-label">Hora</label>

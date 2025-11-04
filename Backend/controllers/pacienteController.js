@@ -63,10 +63,31 @@ exports.createPaciente = (req, res) => {
 	const query = `INSERT INTO paciente (nombre, apellido, sexo, fecha_nacimiento, edad, dui, telefono, fecha_registro, estado, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`;
 	// Si hay fecha_nacimiento no guardamos la edad en la columna 'edad' -> pasamos NULL. Si no, guardamos edadVal.
 	const edadParaBD = fecha_nacimiento ? null : edadVal;
-	db.query(query, [nombre, apellido, sexoVal, fecha_nacimiento || null, edadParaBD, duiVal, telefono, fechaRegistroVal, estadoVal], (err, result) => {
-		if (err) return res.status(500).json({ message: 'Error al crear paciente', error: err });
-		return res.status(201).json({ message: 'Paciente creado', id_paciente: result.insertId });
-	});
+
+	// Validar DUI único si se proporciona (considerando sólo pacientes no eliminados estado <> '0')
+	const proceedInsert = () => {
+		db.query(query, [nombre, apellido, sexoVal, fecha_nacimiento || null, edadParaBD, duiVal, telefono, fechaRegistroVal, estadoVal], (err, result) => {
+			if (err) {
+				if (err.code === 'ER_DUP_ENTRY' || err.errno === 1062) {
+					return res.status(409).json({ message: 'El DUI ya está registrado en otro paciente' });
+				}
+				return res.status(500).json({ message: 'Error al crear paciente', error: err });
+			}
+			return res.status(201).json({ message: 'Paciente creado', id_paciente: result.insertId });
+		});
+	};
+
+	if (duiVal) {
+		db.query(`SELECT id_paciente FROM paciente WHERE dui = ? AND estado <> '0' LIMIT 1`, [duiVal], (err, rows) => {
+			if (err) return res.status(500).json({ message: 'Error al validar DUI', error: err });
+			if (rows && rows.length > 0) {
+				return res.status(409).json({ message: 'El DUI ya está registrado en otro paciente' });
+			}
+			return proceedInsert();
+		});
+	} else {
+		return proceedInsert();
+	}
 };
 
 // Obtener todos los pacientes
@@ -201,13 +222,32 @@ exports.updatePaciente = (req, res) => {
 		}
 
 		// Si existe fecha de nacimiento, no guardamos edad en la columna (guardamos NULL)
-		// Si existe fecha de nacimiento, no guardamos edad en la columna (guardamos NULL)
 		const edadParaBD = newFechaNacimiento ? null : newEdad;
-		const query = `UPDATE paciente SET nombre = ?, apellido = ?, sexo = ?, fecha_nacimiento = ?, edad = ?, dui = ?, telefono = ?, fecha_registro = ?, estado = ?, updated_at = NOW() WHERE id_paciente = ?`;
-		db.query(query, [newNombre, newApellido, newSexo, newFechaNacimiento, edadParaBD, newDui, newTelefono, newFechaRegistro, newEstado, id], (err2) => {
-			if (err2) return res.status(500).json({ message: 'Error al actualizar paciente', error: err2 });
-			return res.status(200).json({ message: 'Paciente actualizado' });
-		});
+		const doUpdate = () => {
+			const query = `UPDATE paciente SET nombre = ?, apellido = ?, sexo = ?, fecha_nacimiento = ?, edad = ?, dui = ?, telefono = ?, fecha_registro = ?, estado = ?, updated_at = NOW() WHERE id_paciente = ?`;
+			db.query(query, [newNombre, newApellido, newSexo, newFechaNacimiento, edadParaBD, newDui, newTelefono, newFechaRegistro, newEstado, id], (err2) => {
+				if (err2) {
+					if (err2.code === 'ER_DUP_ENTRY' || err2.errno === 1062) {
+						return res.status(409).json({ message: 'El DUI ya está registrado en otro paciente' });
+					}
+					return res.status(500).json({ message: 'Error al actualizar paciente', error: err2 });
+				}
+				return res.status(200).json({ message: 'Paciente actualizado' });
+			});
+		};
+
+		// Validar DUI único si se proporciona (y pertenece a otro paciente)
+		if (newDui) {
+			db.query(`SELECT id_paciente FROM paciente WHERE dui = ? AND id_paciente <> ? AND estado <> '0' LIMIT 1`, [newDui, id], (errDu, rowsDu) => {
+				if (errDu) return res.status(500).json({ message: 'Error al validar DUI', error: errDu });
+				if (rowsDu && rowsDu.length > 0) {
+					return res.status(409).json({ message: 'El DUI ya está registrado en otro paciente' });
+				}
+				return doUpdate();
+			});
+		} else {
+			return doUpdate();
+		}
 	});
 };
 

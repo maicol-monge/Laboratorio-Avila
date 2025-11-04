@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import Swal from 'sweetalert2';
 import { useLocation, useNavigate } from "react-router-dom";
+import axios from "axios";
+import mammoth from "mammoth";
 
 export default function FichaPaciente() {
   const location = useLocation();
@@ -26,9 +28,15 @@ export default function FichaPaciente() {
   const [error, setError] = useState(null);
   // medical history state
   const [examenes, setExamenes] = useState([]);
+  const [examenesRealizados, setExamenesRealizados] = useState([]); // lista completa de exámenes realizados del paciente
+  const [tiposExamenes, setTiposExamenes] = useState([]); // catálogo de tipos
   const [citas, setCitas] = useState([]);
   const [histLoading, setHistLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('examenes'); // 'examenes' | 'citas'
+  // filtros para exámenes realizados
+  const [filtroTipoExamen, setFiltroTipoExamen] = useState(''); // id_examen o ''
+  const [filtroFechaDesde, setFiltroFechaDesde] = useState('');
+  const [filtroFechaHasta, setFiltroFechaHasta] = useState('');
   // citas filters
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
@@ -55,6 +63,22 @@ export default function FichaPaciente() {
     return { Authorization: `Bearer ${token}` };
   };
 
+  // Cargar catálogo de tipos de exámenes
+  useEffect(() => {
+    const loadTipos = async () => {
+      try {
+        const headers = getAuthHeaders();
+        if (!headers) return;
+        const res = await axios.get('http://localhost:5000/api/examenes', { headers });
+        setTiposExamenes(res.data || []);
+      } catch (e) {
+        console.error('Error loading examenes catalog', e);
+      }
+    };
+    loadTipos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // debug: show resolved id derived from location / query / state
   console.debug('[FichaPaciente] initial resolved id from location/query/state:', id);
 
@@ -75,14 +99,25 @@ export default function FichaPaciente() {
         if (!res.ok) throw new Error(`Error ${res.status}`);
         const data = await res.json();
         setPaciente(data);
-        // After fetching paciente, try to fetch historial using the id inside the paciente object
+        // After fetching paciente, try to fetch historial usando el id inside the paciente object
         try {
           const headers2 = getAuthHeaders();
           if (headers2) {
             const afterId = (data && (data.id_paciente || data.id || data.idPaciente)) || id;
             console.debug('[FichaPaciente] resolved id after fetching paciente:', afterId);
             if (afterId) {
-              // fetch examenes
+              // fetch examenes realizados (nuevo endpoint)
+              try {
+                const reExReal = await axios.get(`http://localhost:5000/api/examenes_realizados`, { headers: headers2 });
+                const allExReal = reExReal.data || [];
+                // filtrar por paciente
+                const filtered = allExReal.filter(ex => String(ex.id_paciente) === String(afterId));
+                console.debug('[FichaPaciente] fetched examenes_realizados for patient:', filtered);
+                setExamenesRealizados(filtered);
+              } catch (e) {
+                setExamenesRealizados([]);
+              }
+              // fetch examenes (legacy, mantener por compatibilidad)
               try {
                 const re = await fetch(`http://localhost:5000/api/pacientes/${afterId}/examenes`, { headers: headers2 });
                 if (re.ok) {
@@ -122,11 +157,21 @@ export default function FichaPaciente() {
       try {
         const headers = getAuthHeaders();
         if (!headers) {
+          setExamenesRealizados([]);
           setExamenes([]);
           setCitas([]);
           return;
         }
-        // fetch examenes for paciente
+        // fetch examenes_realizados
+        try {
+          const r0 = await axios.get(`http://localhost:5000/api/examenes_realizados`, { headers });
+          const all = r0.data || [];
+          const filtered = all.filter(ex => String(ex.id_paciente) === String(id));
+          setExamenesRealizados(filtered);
+        } catch (e) {
+          setExamenesRealizados([]);
+        }
+        // fetch examenes for paciente (legacy)
         try {
           const r1 = await fetch(`http://localhost:5000/api/pacientes/${id}/examenes`, { headers });
           if (r1.ok) {
@@ -486,6 +531,94 @@ export default function FichaPaciente() {
     }
   };
 
+  // Exportar examen realizado a DOCX
+  const exportExamen = async (idExamen) => {
+    try {
+      const res = await axios.get(
+        `http://localhost:5000/api/examenes_realizados/${idExamen}/export`,
+        {
+          responseType: 'blob',
+          headers: getAuthHeaders(),
+        }
+      );
+      const blob = new Blob([res.data], {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const headers = res.headers || {};
+      let suggested = headers['x-filename'] || headers['X-Filename'];
+      if (!suggested) {
+        const cd = headers['content-disposition'] || headers['Content-Disposition'];
+        if (cd) {
+          const match = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(cd);
+          const fname = match ? (match[1] || match[2]) : '';
+          if (fname) suggested = decodeURIComponent(fname);
+        }
+      }
+      if (!suggested) suggested = `examen_${idExamen}.docx`;
+      a.download = suggested;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Error exportando examen:', err);
+      Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo exportar el examen.' });
+    }
+  };
+
+  // Imprimir examen realizado
+  const printExamen = async (idExamen) => {
+    try {
+      const res = await axios.get(
+        `http://localhost:5000/api/examenes_realizados/${idExamen}/export`,
+        {
+          responseType: 'arraybuffer',
+          headers: getAuthHeaders(),
+        }
+      );
+      const result = await mammoth.convertToHtml(
+        { arrayBuffer: res.data },
+        {
+          includeDefaultStyleMap: true,
+          includeEmbeddedStyleMap: true,
+          convertImage: mammoth.images.imgElement(function(image) {
+            return image.read("base64").then(function(imageBuffer) {
+              return { src: "data:" + image.contentType + ";base64," + imageBuffer };
+            });
+          })
+        }
+      );
+      const htmlContent = result.value;
+      const printWindow = window.open('', '_blank', 'width=900,height=800');
+      if (!printWindow) {
+        Swal.fire({ icon: 'warning', title: 'Ventana bloqueada', text: 'Permita ventanas emergentes para imprimir.' });
+        return;
+      }
+      printWindow.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Examen - Impresión</title>
+        <style>
+          * { box-sizing: border-box; }
+          @page { size: letter; margin: 0; }
+          body { font-family: Calibri, Arial, sans-serif; margin: 0; padding: 0; background: white; }
+          table { border-collapse: collapse; }
+          @media print { body { margin: 0; padding: 0; } @page { margin: 0; } }
+        </style>
+      </head><body>${htmlContent}<script>window.onload=function(){setTimeout(function(){window.print();},400);};</script></body></html>`);
+      printWindow.document.close();
+    } catch (err) {
+      console.error('Error al imprimir examen:', err);
+      Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo preparar el documento para imprimir.' });
+    }
+  };
+
+  // Obtener nombre del tipo de examen
+  const getExamenNombre = (idExamen) => {
+    const ex = tiposExamenes.find(t => Number(t.id_examen) === Number(idExamen));
+    return ex ? ex.titulo_examen : `Examen ${idExamen}`;
+  };
+
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#F0F0F0" }}>
       <div className="d-flex">
@@ -496,7 +629,7 @@ export default function FichaPaciente() {
               <h1 className="h3 mb-0">Ficha del Paciente</h1>
               <div className="d-flex gap-2">
                 <button className="btn" style={{ backgroundColor: "#00C2CC", color: "#fff" }} onClick={() => navigate('/citas', { state: { preselectPacienteId: id } })}>Crear Cita</button>
-                <button className="btn" style={{ backgroundColor: "#00C2CC", color: "#fff" }}>Registrar Examen</button>
+                <button className="btn" style={{ backgroundColor: "#00C2CC", color: "#fff" }} onClick={() => navigate('/realizar-examen', { state: { preselectedPacienteId: id } })}>Registrar Examen</button>
               </div>
             </div>
 
@@ -578,31 +711,87 @@ export default function FichaPaciente() {
                           {histLoading ? (
                             <div className="alert alert-info">Cargando historial...</div>
                           ) : activeTab === 'examenes' ? (
-                            <div className="table-responsive">
-                              <table className="table table-hover">
-                                <thead>
-                                  <tr>
-                                    <th>Fecha</th>
-                                    <th>Examen</th>
-                                    <th>Total Pagado</th>
-                                    <th>Tipo de Pago</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {examenes.length === 0 ? (
-                                    <tr><td colSpan={4} className="text-center text-muted">No hay exámenes registrados.</td></tr>
-                                  ) : (
-                                    examenes.map((ex) => (
-                                      <tr key={ex.id || ex.id_examen || Math.random()}>
-                                        <td>{ex.fecha ? formatDate(ex.fecha) : '-'}</td>
-                                        <td>{ex.nombre || ex.descripcion || '-'}</td>
-                                        <td>{ex.total ? `$${Number(ex.total).toFixed(2)}` : '-'}</td>
-                                        <td>{ex.tipo_pago || '-'}</td>
-                                      </tr>
-                                    ))
-                                  )}
-                                </tbody>
-                              </table>
+                            <div>
+                              {/* Filtros para exámenes realizados */}
+                              <div className="row g-2 mb-3">
+                                <div className="col-md-4">
+                                  <label className="form-label small">Tipo de examen</label>
+                                  <select className="form-select form-select-sm" value={filtroTipoExamen} onChange={(e) => setFiltroTipoExamen(e.target.value)}>
+                                    <option value="">— Todos —</option>
+                                    {tiposExamenes.map(t => (
+                                      <option key={t.id_examen} value={t.id_examen}>{t.titulo_examen}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div className="col-md-3">
+                                  <label className="form-label small">Desde</label>
+                                  <input type="date" className="form-control form-control-sm" value={filtroFechaDesde} onChange={(e) => setFiltroFechaDesde(e.target.value)} />
+                                </div>
+                                <div className="col-md-3">
+                                  <label className="form-label small">Hasta</label>
+                                  <input type="date" className="form-control form-control-sm" value={filtroFechaHasta} onChange={(e) => setFiltroFechaHasta(e.target.value)} />
+                                </div>
+                                <div className="col-md-2 d-flex align-items-end">
+                                  <button className="btn btn-sm btn-outline-secondary w-100" onClick={() => { setFiltroTipoExamen(''); setFiltroFechaDesde(''); setFiltroFechaHasta(''); }}>Limpiar</button>
+                                </div>
+                              </div>
+
+                              <div className="table-responsive">
+                                <table className="table table-hover table-sm">
+                                  <thead>
+                                    <tr>
+                                      <th>Fecha</th>
+                                      <th>Tipo de Examen</th>
+                                      <th>Acciones</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {(() => {
+                                      let filtered = examenesRealizados.slice();
+                                      // filtrar por tipo
+                                      if (filtroTipoExamen) {
+                                        filtered = filtered.filter(ex => String(ex.id_examen) === String(filtroTipoExamen));
+                                      }
+                                      // filtrar por fecha (created_at)
+                                      if (filtroFechaDesde) {
+                                        filtered = filtered.filter(ex => {
+                                          const ymd = String(ex.created_at || '').slice(0,10);
+                                          return ymd >= filtroFechaDesde;
+                                        });
+                                      }
+                                      if (filtroFechaHasta) {
+                                        filtered = filtered.filter(ex => {
+                                          const ymd = String(ex.created_at || '').slice(0,10);
+                                          return ymd <= filtroFechaHasta;
+                                        });
+                                      }
+                                      // ordenar por fecha desc
+                                      filtered.sort((a,b) => {
+                                        const ay = String(a.created_at||'').slice(0,19);
+                                        const by = String(b.created_at||'').slice(0,19);
+                                        return by.localeCompare(ay);
+                                      });
+
+                                      if (filtered.length === 0) {
+                                        return (<tr><td colSpan={3} className="text-center text-muted">No hay exámenes registrados.</td></tr>);
+                                      }
+
+                                      return filtered.map((ex) => (
+                                        <tr key={ex.id_examen_realizado}>
+                                          <td>{formatDate(ex.created_at)}</td>
+                                          <td>{getExamenNombre(ex.id_examen)}</td>
+                                          <td>
+                                            <div className="btn-group btn-group-sm" role="group">
+                                              <button className="btn btn-outline-secondary" onClick={() => exportExamen(ex.id_examen_realizado)} title="Exportar"><i className="bi bi-file-earmark-arrow-down"></i></button>
+                                              <button className="btn btn-outline-dark" onClick={() => printExamen(ex.id_examen_realizado)} title="Imprimir"><i className="bi bi-printer"></i></button>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      ));
+                                    })()}
+                                  </tbody>
+                                </table>
+                              </div>
                             </div>
                           ) : (
                             <div>

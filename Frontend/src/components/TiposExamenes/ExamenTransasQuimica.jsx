@@ -7,6 +7,7 @@ export default function ExamenTransasQuimica({
   pacientes,
   selectedPaciente,
   setSelectedPaciente,
+  lockPaciente,
 }) {
   const handleChange = (e, field) => {
     setForm({
@@ -23,6 +24,7 @@ export default function ExamenTransasQuimica({
         pacientes={pacientes}
         selectedPaciente={selectedPaciente}
         setSelectedPaciente={setSelectedPaciente}
+        lockPaciente={lockPaciente}
       />
 
       <div style={{ fontWeight: "bold", margin: "16px 0 8px 0" }}>

@@ -1,6 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import Swal from "sweetalert2";
+import DatePicker from "react-datepicker";
+import DocxPrintPreview from "../components/DocxPrintPreview";
+import mammoth from "mammoth";
 
 function Examenes() {
   const [examenesRealizados, setExamenesRealizados] = useState([]);
@@ -8,6 +12,21 @@ function Examenes() {
   const [examenes, setExamenes] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const [previewDocxBlob, setPreviewDocxBlob] = useState(null);
+  const [showDocxPreview, setShowDocxPreview] = useState(false);
+
+  // Filters/search/pagination
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterTipoExamen, setFilterTipoExamen] = useState(""); // id_examen or ''
+  // default date range: start = today - 10 days, end = today (YYYY-MM-DD)
+  const getYMD = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const today = new Date();
+  const ymdToday = getYMD(today);
+  const ymdMinus10 = getYMD(new Date(today.getTime() - 10 * 24 * 3600 * 1000));
+  const [filterStartDate, setFilterStartDate] = useState(ymdMinus10);
+  const [filterEndDate, setFilterEndDate] = useState(ymdToday);
+  const [currentPage, setCurrentPage] = useState(1);
+  const perPage = 5;
 
   useEffect(() => {
     // Cargar exámenes realizados
@@ -18,7 +37,7 @@ function Examenes() {
         },
       })
       .then((res) => {
-        setExamenesRealizados(res.data);
+        setExamenesRealizados(res.data || []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -42,6 +61,45 @@ function Examenes() {
       .then((res) => setExamenes(res.data));
   }, []);
 
+  // reset pagination when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filterTipoExamen, filterStartDate, filterEndDate, examenesRealizados]);
+
+  // Helpers
+  const parseYMDToLocalDate = (ymd) => {
+    if (!ymd) return null;
+    const parts = String(ymd).split("-");
+    if (parts.length !== 3) return null;
+    const y = Number(parts[0]);
+    const m = Number(parts[1]) - 1;
+    const d = Number(parts[2]);
+    return new Date(y, m, d);
+  };
+
+  const formatFecha = (val) => {
+    if (!val && val !== 0) return '';
+    try {
+      // accept Date or string; if string, try to use first 10 chars (YYYY-MM-DD)
+      let dt = null;
+      if (val instanceof Date) {
+        dt = val;
+      } else if (typeof val === 'string') {
+        const ymd = val.slice(0,10);
+        const d = parseYMDToLocalDate(ymd);
+        dt = d || new Date(val);
+      } else {
+        dt = new Date(val);
+      }
+      const dd = String(dt.getDate()).padStart(2,'0');
+      const mm = String(dt.getMonth()+1).padStart(2,'0');
+      const yyyy = String(dt.getFullYear());
+      return `${dd}-${mm}-${yyyy}`;
+    } catch(e) {
+      return String(val);
+    }
+  };
+
   // Helpers para mostrar nombre y tipo
   const getPacienteNombre = (id) => {
     const p = pacientes.find((x) => x.id_paciente === id);
@@ -53,43 +111,308 @@ function Examenes() {
     return ex ? ex.titulo_examen : id;
   };
 
+  // Derived list: search, filter by tipo and date, sort by date desc
+  const filteredSorted = useMemo(() => {
+    let list = Array.isArray(examenesRealizados) ? [...examenesRealizados] : [];
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      list = list.filter((ex) => {
+        const pac = getPacienteNombre(ex.id_paciente).toLowerCase();
+        const tipo = getExamenNombre(ex.id_examen).toLowerCase();
+        return pac.includes(q) || tipo.includes(q);
+      });
+    }
+    if (filterTipoExamen) {
+      list = list.filter((ex) => String(ex.id_examen) === String(filterTipoExamen));
+    }
+    // date filter using YYYY-MM-DD lexicographic compare
+    const start = filterStartDate || '';
+    const end = filterEndDate || '';
+    list = list.filter((ex) => {
+      const ymd = String(ex.created_at || '').slice(0,10);
+      if (start && ymd < start) return false;
+      if (end && ymd > end) return false;
+      return true;
+    });
+    // sort by created_at desc (most recent first)
+    list.sort((a,b) => {
+      const ay = String(a.created_at||'').slice(0,19);
+      const by = String(b.created_at||'').slice(0,19);
+      return by.localeCompare(ay);
+    });
+    return list;
+  }, [examenesRealizados, searchQuery, filterTipoExamen, filterStartDate, filterEndDate, pacientes, examenes]);
+
+  // Pagination derived values
+  const totalPages = Math.max(1, Math.ceil(filteredSorted.length / perPage));
+  const currentData = filteredSorted.slice((currentPage - 1) * perPage, currentPage * perPage);
+
+  // Delete handler
+  const handleDelete = (id) => {
+    Swal.fire({
+      title: '¿Eliminar este examen?',
+      text: 'Esta acción no se puede deshacer.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#6c757d',
+      showClass: { popup: 'animate__animated animate__swing' },
+      hideClass: { popup: 'animate__animated animate__fadeOut' }
+    }).then((result) => {
+      if (!result.isConfirmed) return;
+      axios
+        .delete(`http://localhost:5000/api/examenes_realizados/${id}`, {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        })
+        .then(() => {
+          setExamenesRealizados((prev) => prev.filter((x) => x.id_examen_realizado !== id));
+          Swal.fire({
+            title: 'Eliminado',
+            text: 'El examen fue eliminado correctamente',
+            icon: 'success',
+            timer: 1400,
+            showConfirmButton: false
+          });
+        })
+        .catch((err) => {
+          const msg = (err && err.response && err.response.data && err.response.data.error)
+            || 'No se pudo eliminar el examen';
+          Swal.fire({ title: 'Error', text: msg, icon: 'error' });
+        });
+    });
+  };
+
+  // Función para exportar examen realizado a .docx
+  const exportExamen = async (id) => {
+    try {
+      const res = await axios.get(
+        `http://localhost:5000/api/examenes_realizados/${id}/export`,
+        {
+          responseType: "blob",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }
+      );
+
+      // Crear blob y forzar descarga
+      const blob = new Blob([res.data], {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      // Usar el nombre sugerido por el servidor en Content-Disposition o X-Filename si está disponible
+      const headers = res.headers || {};
+      let cd = headers['content-disposition'] || headers['Content-Disposition'];
+      let suggested = headers['x-filename'] || headers['X-Filename'];
+      if (!suggested && cd) {
+        const match = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(cd);
+        const fname = match ? (match[1] || match[2]) : '';
+        if (fname) suggested = decodeURIComponent(fname);
+      }
+      if (!suggested) {
+        // Fallback: armar nombre con datos locales
+        const ex = examenesRealizados.find((e) => e.id_examen_realizado === id);
+        const nombre = ex ? getPacienteNombre(ex.id_paciente) : `examen_${id}`;
+        const tipo = ex ? getExamenNombre(ex.id_examen) : '';
+        const d = ex ? new Date(ex.created_at) : new Date();
+        const dd = String(d.getDate()).padStart(2,'0');
+        const mm = String(d.getMonth()+1).padStart(2,'0');
+        const yyyy = String(d.getFullYear());
+        suggested = `${nombre} - ${tipo} - ${dd}-${mm}-${yyyy}.docx`;
+      }
+      a.download = suggested;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Error exportando examen:", err);
+      alert(
+        "Error al exportar el examen. Revisa la consola del navegador y el servidor."
+      );
+    }
+  };
+
+  // Imprimir: convertir DOCX completo a HTML y abrir ventana de impresión
+  const printExamen = async (id) => {
+    try {
+      // Obtener el DOCX completo y procesado del servidor (mismo que exportar)
+      const res = await axios.get(
+        `http://localhost:5000/api/examenes_realizados/${id}/export`,
+        {
+          responseType: 'arraybuffer',
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        }
+      );
+      
+      // Convertir DOCX completo a HTML usando mammoth con opciones para preservar formato
+      const result = await mammoth.convertToHtml(
+        { arrayBuffer: res.data },
+        {
+          includeDefaultStyleMap: true,
+          includeEmbeddedStyleMap: true,
+          convertImage: mammoth.images.imgElement(function(image) {
+            return image.read("base64").then(function(imageBuffer) {
+              return {
+                src: "data:" + image.contentType + ";base64," + imageBuffer
+              };
+            });
+          })
+        }
+      );
+      const htmlContent = result.value;
+      
+      // Crear ventana de impresión con el HTML del documento completo
+      const printWindow = window.open('', '_blank', 'width=900,height=800');
+      if (!printWindow) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Ventana bloqueada',
+          text: 'Por favor, permita ventanas emergentes para poder imprimir.',
+        });
+        return;
+      }
+      
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <title>Examen - Impresión</title>
+            <style>
+              * {
+                box-sizing: border-box;
+              }
+              @page {
+                size: letter;
+                margin: 0;
+              }
+              body {
+                font-family: Calibri, Arial, sans-serif;
+                margin: 0;
+                padding: 0;
+                background: white;
+              }
+              /* Preservar todos los estilos inline del documento */
+              table {
+                border-collapse: collapse;
+              }
+              @media print {
+                body {
+                  margin: 0;
+                  padding: 0;
+                }
+                @page {
+                  margin: 0;
+                }
+              }
+            </style>
+          </head>
+          <body>
+            ${htmlContent}
+            <script>
+              window.onload = function() {
+                setTimeout(function() {
+                  window.print();
+                }, 400);
+              };
+            </script>
+          </body>
+        </html>
+      `);
+      
+      printWindow.document.close();
+      
+    } catch (err) {
+      console.error('Error al imprimir examen:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo preparar el documento para imprimir. Por favor, use la opción Exportar e imprima desde Word.',
+      });
+    }
+  };
+
   return (
-    <div
-      style={{
-        marginLeft: 250,
-        padding: 20,
-        backgroundColor: "#f8f9fa",
-        minHeight: "100vh",
-      }}
-    >
-      <div
-        className="container py-4"
-        style={{
-          maxWidth: 1100,
-          margin: "40px auto",
-          background: "#fff",
-          borderRadius: 16,
-          boxShadow: "0 2px 8px #eee",
-          minHeight: "70vh",
-        }}
-      >
-        <h2 className="mb-4 text-center" style={{ color: "#00C2CC" }}>
-          Exámenes Realizados
-        </h2>
-        <div className="d-flex justify-content-center mb-4 gap-3">
-          <button
-            className="btn btn-success"
-            onClick={() => navigate("/realizar-examen")}
-          >
-            Registrar examen a paciente
-          </button>
-          <button
-            className="btn btn-primary"
-            onClick={() => navigate("/crud-examenes")}
-          >
-            Gestionar plantillas de exámenes
-          </button>
+    <div style={{ marginLeft: 250, padding: 20, backgroundColor: "#f8f9fa", minHeight: "100vh" }}>
+      <div className="container py-4" style={{ maxWidth: 1100, margin: "40px auto", background: "#fff", borderRadius: 16, boxShadow: "0 2px 8px #eee", minHeight: "70vh" }}>
+        <div className="d-flex justify-content-between align-items-center mb-3">
+          <h2 className="mb-0" style={{ color: "#00C2CC" }}>Exámenes Realizados</h2>
+          <div className="d-flex gap-2">
+            <button className="btn btn-info text-white" onClick={() => navigate("/realizar-examen")}>
+              Registrar examen a paciente
+            </button>
+            <button className="btn btn-outline-info" onClick={() => navigate("/crud-examenes")}>
+              Catálogo de exámenes
+            </button>
+          </div>
         </div>
+
+        {/* Filtros y búsqueda */}
+        <div className="card mb-3">
+          <div className="card-body py-3">
+            <div className="d-flex flex-wrap gap-3 align-items-end">
+              <div className="d-flex flex-column" style={{ minWidth: 260 }}>
+                <label className="form-label small mb-1">Buscar</label>
+                <input
+                  className="form-control"
+                  placeholder="Paciente o tipo de examen"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+              <div className="d-flex flex-column" style={{ width: 240 }}>
+                <label className="form-label small mb-1">Tipo de examen</label>
+                <select className="form-select" value={filterTipoExamen} onChange={(e) => setFilterTipoExamen(e.target.value)}>
+                  <option value="">— Todos —</option>
+                  {examenes.map((x) => (
+                    <option key={x.id_examen} value={x.id_examen}>{x.titulo_examen}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="d-flex flex-column">
+                <label className="form-label small mb-1">Desde</label>
+                <DatePicker
+                  selected={filterStartDate ? parseYMDToLocalDate(filterStartDate) : null}
+                  onChange={(date) => setFilterStartDate(date ? getYMD(date) : '')}
+                  className="form-control form-control-sm border-info"
+                  placeholderText="Seleccionar fecha"
+                  dateFormat="dd-MM-yyyy"
+                  isClearable
+                />
+              </div>
+              <div className="d-flex flex-column">
+                <label className="form-label small mb-1">Hasta</label>
+                <DatePicker
+                  selected={filterEndDate ? parseYMDToLocalDate(filterEndDate) : null}
+                  onChange={(date) => setFilterEndDate(date ? getYMD(date) : '')}
+                  className="form-control form-control-sm border-info"
+                  placeholderText="Seleccionar fecha"
+                  dateFormat="dd-MM-yyyy"
+                  isClearable
+                />
+              </div>
+              <div className="ms-auto">
+                <button
+                  className="btn btn-sm btn-info text-white"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setFilterTipoExamen('');
+                    setFilterStartDate(ymdMinus10);
+                    setFilterEndDate(ymdToday);
+                  }}
+                >
+                  Limpiar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {loading ? (
           <div className="text-center">Cargando...</div>
         ) : (
@@ -97,41 +420,63 @@ function Examenes() {
             <table className="table table-bordered table-hover align-middle">
               <thead className="table-light">
                 <tr>
-                  <th style={{ width: 60 }}>ID</th>
-                  <th style={{ width: 180 }}>Paciente</th>
-                  <th style={{ width: 180 }}>Examen</th>
-                  <th>Diagnóstico</th>
-                  <th style={{ width: 100 }}>Estado</th>
-                  <th style={{ width: 120 }}>Fecha</th>
+                  <th style={{ width: 70 }}>ID</th>
+                  <th style={{ width: 220 }}>Paciente</th>
+                  <th style={{ width: 220 }}>Examen</th>
+                  <th style={{ width: 140 }}>Fecha</th>
+                  <th style={{ width: 180 }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {examenesRealizados.length === 0 ? (
+                {currentData.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="text-center">
-                      No hay exámenes realizados.
-                    </td>
+                    <td colSpan={5} className="text-center">No hay exámenes realizados.</td>
                   </tr>
                 ) : (
-                  examenesRealizados.map((ex) => (
+                  currentData.map((ex) => (
                     <tr key={ex.id_examen_realizado}>
                       <td>{ex.id_examen_realizado}</td>
                       <td>{getPacienteNombre(ex.id_paciente)}</td>
                       <td>{getExamenNombre(ex.id_examen)}</td>
+                      <td>{formatFecha(ex.created_at)}</td>
                       <td>
-                        <button
-                          className="btn btn-outline-info btn-sm"
-                          onClick={() =>
-                            navigate(
-                              `/editar-examen-realizado/${ex.id_examen_realizado}`
-                            )
-                          }
-                        >
-                          Ver/Editar
-                        </button>
+                        <div className="btn-group" role="group">
+                          <button
+                            className="btn btn-sm btn-info text-white"
+                            onClick={() =>
+                              navigate('/realizar-examen', { state: { editId: ex.id_examen_realizado } })
+                            }
+                            title="Ver/Editar"
+                          >
+                            <i className="bi bi-pencil-square me-1"></i>
+                            Ver/Editar
+                          </button>
+                          <button
+                            className="btn btn-sm btn-outline-secondary"
+                            onClick={() => exportExamen(ex.id_examen_realizado)}
+                            title="Exportar a .docx"
+                          >
+                            <i className="bi bi-file-earmark-arrow-down me-1"></i>
+                            Exportar
+                          </button>
+                          <button
+                            className="btn btn-sm btn-outline-dark"
+                            onClick={() => printExamen(ex.id_examen_realizado)}
+                            title="Imprimir"
+                          >
+                            <i className="bi bi-printer me-1"></i>
+                            Imprimir
+                          </button>
+                          <button
+                            className="btn btn-sm btn-danger"
+                            onClick={() => handleDelete(ex.id_examen_realizado)}
+                            title="Eliminar"
+                          >
+                            <i className="bi bi-trash me-1"></i>
+                            Eliminar
+                          </button>
+                        </div>
                       </td>
-                      <td>{ex.estado === "1" ? "Activo" : "Inactivo"}</td>
-                      <td>{ex.created_at?.slice(0, 10)}</td>
                     </tr>
                   ))
                 )}
@@ -139,7 +484,30 @@ function Examenes() {
             </table>
           </div>
         )}
+
+        {/* Paginación */}
+        <nav>
+          <ul className="pagination pagination-sm justify-content-end m-3">
+            <li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
+              <button className="page-link" onClick={() => setCurrentPage(currentPage - 1)}>Anterior</button>
+            </li>
+            {Array.from({ length: totalPages }, (_, i) => (
+              <li key={i + 1} className={`page-item ${currentPage === i + 1 ? 'active' : ''}`}>
+                <button className="page-link" onClick={() => setCurrentPage(i + 1)}>{i + 1}</button>
+              </li>
+            ))}
+            <li className={`page-item ${currentPage === totalPages ? 'disabled' : ''}`}>
+              <button className="page-link" onClick={() => setCurrentPage(currentPage + 1)}>Siguiente</button>
+            </li>
+          </ul>
+        </nav>
       </div>
+      {showDocxPreview && (
+        <DocxPrintPreview
+          blob={previewDocxBlob}
+          onClose={() => setShowDocxPreview(false)}
+        />
+      )}
     </div>
   );
 }

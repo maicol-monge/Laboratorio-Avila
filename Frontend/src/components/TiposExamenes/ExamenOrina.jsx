@@ -7,6 +7,7 @@ export default function ExamenOrina({
   pacientes,
   selectedPaciente,
   setSelectedPaciente,
+  lockPaciente,
 }) {
   // Helper para actualizar campos anidados
   const handleChange = (e, section, field) => {
@@ -29,6 +30,7 @@ export default function ExamenOrina({
         pacientes={pacientes}
         selectedPaciente={selectedPaciente}
         setSelectedPaciente={setSelectedPaciente}
+        lockPaciente={lockPaciente}
       />
       {/* Examen Físico */}
       <div
