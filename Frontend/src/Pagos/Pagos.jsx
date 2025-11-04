@@ -345,16 +345,17 @@ const PagosAvila = () => {
                       {loadingStats && <div className="small text-muted">Actualizando…</div>}
                     </div>
                   </div>
-                  <div className="card border-0" style={{ background: '#FFF5E8' }}>
-                    <div className="card-body py-2 px-3">
-                      <div className="small text-muted">Pendiente</div>
-                      <div className="h5 mb-0" style={{ color: '#b86b00' }}>$ {stats.totalPendiente.toFixed(2)}</div>
-                    </div>
-                  </div>
+                  
                   <div className="card border-0" style={{ background: '#E8FFF5' }}>
                     <div className="card-body py-2 px-3">
                       <div className="small text-muted">Pagado</div>
                       <div className="h5 mb-0" style={{ color: '#0a8754' }}>$ {stats.totalPagado.toFixed(2)}</div>
+                    </div>
+                  </div>
+                  <div className="card border-0" style={{ background: '#FFF5E8' }}>
+                    <div className="card-body py-2 px-3">
+                      <div className="small text-muted">Pendiente</div>
+                      <div className="h5 mb-0" style={{ color: '#b86b00' }}>$ {stats.totalPendiente.toFixed(2)}</div>
                     </div>
                   </div>
                 </div>
