@@ -8,6 +8,7 @@
     "mysql2": "^3.15.0",
     "nodemailer": "^7.0.6",
     "easy-template-x": "^2.0.2",
-    "jszip": "^3.10.1"
+    "jszip": "^3.10.1",
+    "pdfkit": "^0.15.0"
   }
 }

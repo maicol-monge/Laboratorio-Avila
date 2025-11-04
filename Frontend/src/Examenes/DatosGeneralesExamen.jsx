@@ -96,16 +96,61 @@ export default function DatosGeneralesExamen({
   // Precarga datos del paciente seleccionado
   useEffect(() => {
     if (!selectedPaciente) return;
-    const paciente = pacientes.find(p => p.id_paciente === Number(selectedPaciente));
+    // buscar en la lista principal y en temporales
+    const combined = [
+      ...pacientes,
+      ...tempPacientes.filter(tp => !pacientes.some(p => Number(p.id_paciente) === Number(tp.id_paciente))),
+    ];
+    const paciente = combined.find((p) => Number(p.id_paciente) === Number(selectedPaciente));
     if (paciente) {
-      setForm(f => ({
+      setForm((f) => ({
         ...f,
-        edad: paciente.edad || "",
-        sexo: paciente.sexo || "",
+        edad: paciente.edad ?? f.edad ?? "",
+        sexo: paciente.sexo ?? f.sexo ?? "",
         // ...otros campos si tienes...
       }));
     }
   }, [selectedPaciente, pacientes, setForm]);
+
+  // Autoseleccionar cuando la búsqueda produce exactamente una coincidencia
+  useEffect(() => {
+    const q = (pacienteQuery || "").trim().toLowerCase();
+    if (!q) return; // no modificar selección si no hay búsqueda
+
+    const combined = [
+      ...pacientes,
+      ...tempPacientes.filter(tp => !pacientes.some(p => Number(p.id_paciente) === Number(tp.id_paciente))),
+    ];
+
+    const matches = combined.filter((p) => {
+      const name = `${p.nombre || ""} ${p.apellido || ""}`.toLowerCase();
+      const dui = (p.dui || "").toLowerCase();
+      const qDigits = q.replace(/\D/g, "");
+      return (
+        name.includes(q) ||
+        dui.includes(q) ||
+        (qDigits && (p.dui || "").replace(/\D/g, "").includes(qDigits))
+      );
+    });
+
+    if (matches.length === 1) {
+      const m = matches[0];
+      if (String(selectedPaciente) !== String(m.id_paciente)) {
+        setSelectedPaciente(String(m.id_paciente));
+        setForm((f) => ({
+          ...f,
+          edad: m.edad ?? f.edad ?? "",
+          sexo: m.sexo ?? f.sexo ?? "",
+        }));
+      }
+    } else if (matches.length > 1) {
+      // si existen varias coincidencias y la selección actual no está entre ellas,
+      // limpiar la selección para que el usuario elija explícitamente
+      const inMatches = matches.some((m) => String(m.id_paciente) === String(selectedPaciente));
+      if (!inMatches) setSelectedPaciente("");
+    }
+    // si no hay matches, no hacemos nada (el usuario puede crear rápido)
+  }, [pacienteQuery, pacientes, tempPacientes, selectedPaciente, setForm, setSelectedPaciente]);
 
   // Cuando el padre ya incluye los temporales, limpiarlos para no duplicar
   useEffect(() => {

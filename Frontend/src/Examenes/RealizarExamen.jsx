@@ -40,6 +40,232 @@ const componentesExamen = {
   "sustan,ph+egh": ExamenSustanPhEgh,
 };
 
+// Campos requeridos por tipo de examen (claves del objeto `form`)
+// Para secciones anidadas, usar notación "seccion.campo"
+const REQUIRED_FIELDS = {
+  "(Basi) quimica": [
+    "glucosa",
+    "colesterol",
+    "trigliceridos",
+    "acido_urico",
+    "creatinina",
+  ],
+  "(HDL) quimica": [
+    "glucosa",
+    "colesterol",
+    "hdl",
+    "ldl",
+    "trigliceridos",
+    "acido_urico",
+    "creatinina",
+    "nitrogeno_ureico",
+  ],
+  "Transas quimica": [
+    "glucosa",
+    "colesterol",
+    "trigliceridos",
+    "acido_urico",
+    "creatinina",
+    "tgo",
+    "tgp",
+  ],
+  hemograma: [
+    "globulos_rojos",
+    "hematocrito",
+    "hemoglobina",
+    "vcm",
+    "hcm",
+    "chcm",
+    "globulos_blancos",
+    "neutrofilos",
+    "linfocitos",
+    "monocitos",
+    "eosinofilos",
+    "basofilos",
+    "plaquetas",
+  ],
+  heces: [
+    "fisico.color",
+    "fisico.consistencia",
+    "fisico.mucus",
+    "fisico.leucocitos",
+    "fisico.hematies",
+    "fisico.restos_macroscopicos",
+    "fisico.restos_microscopicos",
+    "parasitologico.activos",
+    "parasitologico.quistes",
+    "parasitologico.bacterias",
+    "parasitologico.levaduras",
+  ],
+  "heces+pam": [
+    "fisico.color",
+    "fisico.consistencia",
+    "fisico.mucus",
+    "fisico.leucocitos",
+    "fisico.hematies",
+    "fisico.restos_macroscopicos",
+    "fisico.restos_microscopicos",
+    "parasitologico.activos",
+    "parasitologico.quistes",
+    "parasitologico.bacterias",
+    "parasitologico.levaduras",
+    "pam.polimorfonucleares",
+    "pam.mononucleares",
+  ],
+  "Hp + Egh": [
+    "fisico.color",
+    "fisico.consistencia",
+    "fisico.mucus",
+    "fisico.leucocitos",
+    "fisico.hematies",
+    "fisico.restos_macroscopicos",
+    "fisico.restos_microscopicos",
+    "parasitologico.activos",
+    "parasitologico.quistes",
+    "parasitologico.bacterias",
+    "parasitologico.levaduras",
+    "helicobacter_pylori",
+  ],
+  "Hp + Egh+so": [
+    "fisico.color",
+    "fisico.consistencia",
+    "fisico.mucus",
+    "fisico.leucocitos",
+    "fisico.hematies",
+    "fisico.restos_macroscopicos",
+    "fisico.restos_microscopicos",
+    "parasitologico.activos",
+    "parasitologico.quistes",
+    "parasitologico.bacterias",
+    "parasitologico.levaduras",
+    "helicobacter_pylori",
+    "sangre_oculta",
+  ],
+  "sustan,ph+egh": [
+    "fisico.color",
+    "fisico.consistencia",
+    "fisico.mucus",
+    "fisico.leucocitos",
+    "fisico.hematies",
+    "fisico.restos_macroscopicos",
+    "fisico.restos_microscopicos",
+    "parasitologico.activos",
+    "parasitologico.quistes",
+    "parasitologico.bacterias",
+    "parasitologico.levaduras",
+    "ph_heces",
+    "sustancias_reductoras",
+  ],
+  orina: [
+    "fisico.color",
+    "fisico.aspecto",
+    "fisico.ph",
+    "quimico.densidad",
+    "quimico.nitritos",
+    "quimico.glucosa",
+    "quimico.proteinas",
+    "quimico.cuerpos_cetonicos",
+    "quimico.urobilinogeno",
+    "quimico.bilirrubina",
+    "quimico.sangre_oculta",
+    "microscopico.leucocitos",
+    "microscopico.hematies",
+    "microscopico.celulas_escamosas",
+    "microscopico.celulas_redondas",
+    "microscopico.cilindros",
+    "microscopico.cristales",
+    "microscopico.parasitos",
+    "microscopico.otros",
+  ],
+};
+
+const LABELS = {
+  tipo_muestra: "Tipo de muestra",
+  // comunes
+  glucosa: "Glucosa",
+  colesterol: "Colesterol",
+  trigliceridos: "Triglicéridos",
+  acido_urico: "Ácido úrico",
+  creatinina: "Creatinina",
+  nitrogeno_ureico: "Nitrógeno uréico",
+  hdl: "HDL",
+  ldl: "LDL",
+  tgo: "TGO",
+  tgp: "TGP",
+  globulos_rojos: "Glóbulos rojos",
+  hematocrito: "Hematocrito",
+  hemoglobina: "Hemoglobina",
+  vcm: "VCM",
+  hcm: "HCM",
+  chcm: "CHCM",
+  globulos_blancos: "Glóbulos blancos",
+  neutrofilos: "Neutrófilos",
+  linfocitos: "Linfocitos",
+  monocitos: "Monocitos",
+  eosinofilos: "Eosinófilos",
+  basofilos: "Basófilos",
+  plaquetas: "Plaquetas",
+  // secciones heces/orina
+  "fisico.color": "Físico > Color",
+  "fisico.consistencia": "Físico > Consistencia",
+  "fisico.mucus": "Físico > Mucus",
+  "fisico.leucocitos": "Físico > Leucocitos",
+  "fisico.hematies": "Físico > Hematíes",
+  "fisico.restos_macroscopicos": "Físico > Restos macroscópicos",
+  "fisico.restos_microscopicos": "Físico > Restos microscópicos",
+  "fisico.aspecto": "Físico > Aspecto",
+  "fisico.ph": "Físico > pH",
+  "quimico.densidad": "Químico > Densidad",
+  "quimico.nitritos": "Químico > Nitritos",
+  "quimico.glucosa": "Químico > Glucosa",
+  "quimico.proteinas": "Químico > Proteínas",
+  "quimico.cuerpos_cetonicos": "Químico > Cuerpos cetónicos",
+  "quimico.urobilinogeno": "Químico > Urobilinógeno",
+  "quimico.bilirrubina": "Químico > Bilirrubina",
+  "quimico.sangre_oculta": "Químico > Sangre oculta",
+  "microscopico.leucocitos": "Microscópico > Leucocitos",
+  "microscopico.hematies": "Microscópico > Hematíes",
+  "microscopico.celulas_escamosas": "Microscópico > Células escamosas",
+  "microscopico.celulas_redondas": "Microscópico > Células redondas",
+  "microscopico.cilindros": "Microscópico > Cilindros",
+  "microscopico.cristales": "Microscópico > Cristales",
+  "microscopico.parasitos": "Microscópico > Parásitos",
+  "microscopico.otros": "Microscópico > Otros",
+  "parasitologico.activos": "Parasitológico > Activos",
+  "parasitologico.quistes": "Parasitológico > Quistes",
+  "parasitologico.bacterias": "Parasitológico > Bacterias",
+  "parasitologico.levaduras": "Parasitológico > Levaduras",
+  helicobacter_pylori: "Helicobacter pylori en heces",
+  sangre_oculta: "Sangre oculta en heces",
+  ph_heces: "pH en heces",
+  sustancias_reductoras: "Sustancias reductoras en heces",
+  "pam.polimorfonucleares": "% Polimorfonucleares (PAM)",
+  "pam.mononucleares": "% Mononucleares (PAM)",
+};
+
+function getNested(formObj, path) {
+  if (!path) return undefined;
+  const parts = path.split(".");
+  let cur = formObj;
+  for (const k of parts) {
+    if (cur == null || typeof cur !== "object") return undefined;
+    cur = cur[k];
+  }
+  return cur;
+}
+
+function getMissingRequiredFields(plantilla, form) {
+  const required = REQUIRED_FIELDS[plantilla] || [];
+  const missing = [];
+  // tipo de muestra requerido para todos
+  if (!form?.tipo_muestra || String(form.tipo_muestra).trim() === "") missing.push("tipo_muestra");
+  for (const key of required) {
+    const val = key.includes(".") ? getNested(form, key) : form?.[key];
+    if (val == null || String(val).trim() === "") missing.push(key);
+  }
+  return missing;
+}
+
 export default function RealizarExamen() {
   const [selectedPlantilla, setSelectedPlantilla] = useState(
     nombresExamenes[0]
@@ -168,6 +394,15 @@ export default function RealizarExamen() {
   // Guardar en el listado local
   const handleGuardar = () => {
     try {
+      // Validar paciente seleccionado y campos requeridos por plantilla
+      if (!selectedPaciente) {
+        return Swal.fire({ icon: "warning", title: "Seleccione un paciente", text: "Debe seleccionar un paciente antes de guardar.", confirmButtonColor: "#17a2b8" });
+      }
+      const missing = getMissingRequiredFields(selectedPlantilla, form || {});
+      if (missing.length > 0) {
+        const msg = missing.map(k => LABELS[k] || k).join(", ");
+        return Swal.fire({ icon: "warning", title: "Campos obligatorios", html: `Complete: <b>${msg}</b>`, confirmButtonColor: "#17a2b8" });
+      }
       const tipo_muestra = form.tipo_muestra || "";
       const { tipo_muestra: _, ...diagnosticoData } = form;
 
@@ -230,6 +465,8 @@ export default function RealizarExamen() {
   // Enviar todos los exámenes del listado a la base de datos
   const handleFinalizar = async () => {
     try {
+      const createdIds = [];
+      let patientId = null;
       for (const examen of listado) {
         // Asegurarse de incluir tipo_muestra dentro del objeto diagnostico
         const diagnosticoToSend = {
@@ -237,7 +474,7 @@ export default function RealizarExamen() {
           tipo_muestra: examen.tipo_muestra || "",
         };
 
-        await axios.post(
+        const { data } = await axios.post(
           "http://localhost:5000/api/examenes_realizados",
           {
             id_paciente: examen.id_paciente,
@@ -252,11 +489,32 @@ export default function RealizarExamen() {
             },
           }
         );
+        if (data && data.id_examen_realizado) {
+          createdIds.push(Number(data.id_examen_realizado));
+        }
+        if (!patientId) patientId = examen.id_paciente;
+        if (patientId && Number(patientId) !== Number(examen.id_paciente)) {
+          // En caso de mezcla de pacientes, tomamos el primero para el comprobante
+        }
       }
+      // Crear comprobante pendiente de pago si hay exámenes creados
+      if (createdIds.length > 0 && patientId) {
+        try {
+          await axios.post(
+            "http://localhost:5000/api/comprobantes",
+            { id_paciente: Number(patientId), examenes_realizados: createdIds },
+            { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
+          );
+        } catch (e) {
+          // si falla la creación del comprobante, igual continuar pero notificar
+          console.error("No se pudo crear comprobante pendiente:", e);
+        }
+      }
+
       await Swal.fire({
         icon: "success",
         title: "Exámenes guardados",
-        text: "Todos los exámenes fueron guardados correctamente.",
+        html: "Todos los exámenes fueron guardados. Se generó un comprobante <b>pendiente de pago</b>.",
         timer: 1800,
         showConfirmButton: false,
       });
@@ -423,7 +681,7 @@ export default function RealizarExamen() {
                   pacientes={pacientes}
                   selectedPaciente={selectedPaciente}
                   setSelectedPaciente={setSelectedPaciente}
-                  lockPaciente={isExistingEdit}
+                  lockPaciente={isExistingEdit || listado.length > 0}
                 />
               </fieldset>
             )}
@@ -442,7 +700,7 @@ export default function RealizarExamen() {
                     className="btn btn-success"
                     type="button"
                     onClick={handleGuardar}
-                    disabled={!selectedPaciente}
+                    disabled={!selectedPaciente || getMissingRequiredFields(selectedPlantilla, form || {}).length > 0}
                   >
                     Guardar en listado
                   </button>

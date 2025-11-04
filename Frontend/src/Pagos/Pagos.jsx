@@ -1,220 +1,217 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import axios from 'axios';
+import Swal from 'sweetalert2';
+
+const fmtDMY = (val) => {
+  try {
+    const d = new Date(String(val).replace(' ', 'T'));
+    const dd = String(d.getDate()).padStart(2,'0');
+    const mm = String(d.getMonth()+1).padStart(2,'0');
+    const yyyy = d.getFullYear();
+    return `${dd}-${mm}-${yyyy}`;
+  } catch { return String(val || ''); }
+};
 
 const PagosAvila = () => {
-  const [formData, setFormData] = useState({
-    nombrePaciente: '',
-    numeroFactura: '',
-    monto: '',
-    metodoPago: '',
-    email: ''
-  });
+  const [comprobantes, setComprobantes] = useState([]);
+  const [filtroEstado, setFiltroEstado] = useState('0'); // 0: pendientes, 1: pagados, '' todos
+  const [seleccionado, setSeleccionado] = useState(null); // objeto de comprobante + detalles
+  const [metodoPago, setMetodoPago] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const [procesando, setProcesando] = useState(false);
-  const [pagoExitoso, setPagoExitoso] = useState(false);
-
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+  const loadComprobantes = async () => {
+    try {
+      setLoading(true);
+      const params = {};
+      if (filtroEstado === '0' || filtroEstado === '1') params.estado = filtroEstado;
+      const { data } = await axios.get('http://localhost:5000/api/comprobantes', {
+        params,
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      setComprobantes(data || []);
+    } catch (_) {
+      setComprobantes([]);
+    } finally { setLoading(false); }
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setProcesando(true);
-    
-    // Simular procesamiento de pago
-    setTimeout(() => {
-      setProcesando(false);
-      setPagoExitoso(true);
-      // Aquí iría la lógica real de procesamiento de pago
-    }, 2000);
+  useEffect(() => { loadComprobantes(); }, [filtroEstado]);
+
+  const seleccionar = async (c) => {
+    try {
+      const { data } = await axios.get(`http://localhost:5000/api/comprobantes/${c.id_comprobante}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      setSeleccionado(data);
+      setMetodoPago('');
+    } catch (_) { /* ignore */ }
   };
 
-  const resetForm = () => {
-    setFormData({
-      nombrePaciente: '',
-      numeroFactura: '',
-      monto: '',
-      metodoPago: '',
-      email: ''
-    });
-    setPagoExitoso(false);
+  const procesarPago = async () => {
+    if (!seleccionado) return;
+    if (!metodoPago) {
+      Swal.fire({ icon:'warning', title:'Seleccione método de pago' });
+      return;
+    }
+    try {
+      await axios.put(
+        `http://localhost:5000/api/comprobantes/${seleccionado.id_comprobante}/pagar`,
+        { metodoPago },
+        { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+      );
+      Swal.fire({ icon:'success', title:'Pago procesado', timer: 1400, showConfirmButton: false });
+      setMetodoPago('');
+      // recargar lista y detalle
+      await loadComprobantes();
+      await seleccionar({ id_comprobante: seleccionado.id_comprobante });
+    } catch (e) {
+      Swal.fire({ icon:'error', title:'No se pudo procesar el pago' });
+    }
   };
+
+  const exportarPdf = async () => {
+    if (!seleccionado || seleccionado.estado !== '1') return;
+    try {
+      const res = await axios.get(`http://localhost:5000/api/comprobantes/${seleccionado.id_comprobante}/export-pdf`, {
+        responseType: 'blob',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const headers = res.headers || {};
+      let cd = headers['content-disposition'] || headers['Content-Disposition'];
+      let suggested = headers['x-filename'] || headers['X-Filename'];
+      if (!suggested && cd) {
+        const match = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(cd);
+        const fname = match ? (match[1] || match[2]) : '';
+        if (fname) suggested = decodeURIComponent(fname);
+      }
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = suggested || `Comprobante_${seleccionado.id_comprobante}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      Swal.fire({ icon:'error', title:'No se pudo exportar el PDF' });
+    }
+  };
+
+  const pendientes = useMemo(() => comprobantes.filter(c => c.estado === '0'), [comprobantes]);
+  const pagados = useMemo(() => comprobantes.filter(c => c.estado === '1'), [comprobantes]);
 
   return (
-    <div className="container-fluid" style={{ backgroundColor: 'white', minHeight: '100vh' }}>
-      {/* Header de la página */}
-      
-      {/* Contenido principal */}
-      <div className="row justify-content-center">
-        <div className="col-lg-8 col-md-10">
-          {pagoExitoso ? (
-            <div className="card border-0 shadow-sm">
-              <div className="card-body text-center py-5">
-                <div className="mb-4">
-                  <i className="fas fa-check-circle text-success" style={{ fontSize: '4rem' }}></i>
-                </div>
-                <h3 className="text-success mb-3">¡Pago Procesado Exitosamente!</h3>
-                <p className="text-muted mb-4">
-                  Su pago ha sido procesado correctamente. Recibirá un comprobante en su email.
-                </p>
-                <button 
-                  className="btn btn-info text-white"
-                  onClick={resetForm}
-                >
-                  Realizar Otro Pago
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="card border-0 shadow-sm">
-              <div className="card-header bg-white border-0 pb-0">
-                <h4 className="card-title mb-3" style={{ color: '#333' }}>
-                  Información del Pago
-                </h4>
-              </div>
+    <div style={{ marginLeft: 250, padding: 20, backgroundColor: '#f8f9fa', minHeight: '100vh' }}>
+      <div className="container py-4" style={{ maxWidth: 1100, margin: '40px auto', background: '#fff', borderRadius: 16, boxShadow: '0 2px 8px #eee', minHeight: '70vh' }}>
+        <div className="d-flex justify-content-between align-items-center mb-3" style={{ padding: '0 8px' }}>
+          <h2 className="mb-0" style={{ color: '#00C2CC' }}>Pagos</h2>
+          <div className="d-flex align-items-center gap-2">
+            <label className="form-label small mb-0 me-1 text-muted">Mostrar</label>
+            <select className="form-select form-select-sm" value={filtroEstado} onChange={(e)=>setFiltroEstado(e.target.value)} style={{ width: 200 }}>
+              <option value="0">Pendientes</option>
+              <option value="1">Pagados</option>
+              <option value="">Todos</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="row g-3" style={{ padding: '0 8px 12px' }}>
+          <div className="col-12 col-lg-5">
+            <div className="card border-0 shadow-sm h-100">
               <div className="card-body">
-                <form onSubmit={handleSubmit}>
-                  <div className="row">
-                    <div className="col-md-6 mb-3">
-                      <label htmlFor="nombrePaciente" className="form-label">
-                        Nombre del Paciente *
-                      </label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        id="nombrePaciente"
-                        name="nombrePaciente"
-                        value={formData.nombrePaciente}
-                        onChange={handleChange}
-                        required
-                        placeholder="Ingrese nombre completo"
-                      />
-                    </div>
-                    
-                    <div className="col-md-6 mb-3">
-                      <label htmlFor="numeroFactura" className="form-label">
-                        Número de Factura *
-                      </label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        id="numeroFactura"
-                        name="numeroFactura"
-                        value={formData.numeroFactura}
-                        onChange={handleChange}
-                        required
-                        placeholder="Ej: AV-2024-001"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="row">
-                    <div className="col-md-6 mb-3">
-                      <label htmlFor="monto" className="form-label">
-                        Monto a Pagar ($) *
-                      </label>
-                      <input
-                        type="number"
-                        className="form-control"
-                        id="monto"
-                        name="monto"
-                        value={formData.monto}
-                        onChange={handleChange}
-                        required
-                        min="0"
-                        step="0.01"
-                        placeholder="0.00"
-                      />
-                    </div>
-                    
-                    <div className="col-md-6 mb-3">
-                      <label htmlFor="metodoPago" className="form-label">
-                        Método de Pago *
-                      </label>
-                      <select
-                        className="form-select"
-                        id="metodoPago"
-                        name="metodoPago"
-                        value={formData.metodoPago}
-                        onChange={handleChange}
-                        required
+                {loading ? (
+                  <div className="text-center text-muted py-4">Cargando...</div>
+                ) : (
+                  <ul className="list-group list-group-flush">
+                    {(filtroEstado===''?comprobantes:(filtroEstado==='0'?pendientes:pagados)).map(c => (
+                      <li
+                        key={c.id_comprobante}
+                        className="list-group-item d-flex justify-content-between align-items-center"
+                        style={{ cursor: 'pointer' }}
+                        onClick={()=>seleccionar(c)}
                       >
-                        <option value="">Seleccione método</option>
-                        <option value="tarjeta">Tarjeta de Crédito/Débito</option>
-                        <option value="transferencia">Transferencia Bancaria</option>
-                        <option value="efectivo">Pago en Efectivo</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="mb-4">
-                    <label htmlFor="email" className="form-label">
-                      Email para Comprobante
-                    </label>
-                    <input
-                      type="email"
-                      className="form-control"
-                      id="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleChange}
-                      placeholder="correo@ejemplo.com"
-                    />
-                    <div className="form-text">
-                      Enviaremos el comprobante de pago a este email
-                    </div>
-                  </div>
-
-                  <div className="d-grid gap-2">
-                    <button
-                      type="submit"
-                      className="btn btn-info text-white py-2"
-                      disabled={procesando}
-                    >
-                      {procesando ? (
-                        <>
-                          <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                          Procesando Pago...
-                        </>
-                      ) : (
-                        <>
-                          <i className="fas fa-credit-card me-2"></i>
-                          Proceder al Pago
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </form>
+                        <div>
+                          <div className="fw-semibold">Comprobante #{c.id_comprobante}</div>
+                          <div className="text-muted" style={{ fontSize: 12 }}>
+                            {c.paciente_nombre} {c.paciente_apellido} · {fmtDMY(c.fecha_emision)} · {c.estado==='1'?'Pagado':'Pendiente'}
+                          </div>
+                        </div>
+                        <div className="text-end">
+                          <div className="fw-bold">$ {Number(c.total||0).toFixed(2)}</div>
+                          {c.estado==='1' && (
+                            <small className="text-muted">{c.tipo_pago==='E'?'Efectivo':c.tipo_pago==='T'?'Tarjeta':c.tipo_pago==='B'?'Transferencia':''}</small>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                    {((filtroEstado===''?comprobantes:(filtroEstado==='0'?pendientes:pagados))).length===0 && (
+                      <li className="list-group-item text-center text-muted">Sin resultados</li>
+                    )}
+                  </ul>
+                )}
               </div>
             </div>
-          )}
+          </div>
 
-          {/* Información adicional */}
-          <div className="row mt-4">
-            <div className="col-12">
-              <div className="card border-0" style={{ backgroundColor: '#f8f9fa' }}>
-                <div className="card-body">
-                  <h6 className="card-title text-info">
-                    <i className="fas fa-info-circle me-2"></i>
-                    Información Importante
-                  </h6>
-                  <ul className="list-unstyled mb-0 small">
-                    <li className="mb-1">
-                      <i className="fas fa-shield-alt text-info me-2"></i>
-                      Todos los pagos son procesados de forma segura
-                    </li>
-                    <li className="mb-1">
-                      <i className="fas fa-clock text-info me-2"></i>
-                      Procesamiento inmediato
-                    </li>
-                    <li>
-                      <i className="fas fa-envelope text-info me-2"></i>
-                      Comprobante enviado por email
-                    </li>
-                  </ul>
-                </div>
+          <div className="col-12 col-lg-7">
+            <div className="card border-0 shadow-sm h-100">
+              <div className="card-body">
+                {!seleccionado ? (
+                  <div className="text-muted">Seleccione un comprobante para ver los detalles</div>
+                ) : (
+                  <>
+                    <div className="d-flex justify-content-between align-items-center mb-2">
+                      <h5 className="mb-0" style={{ color:'#00C2CC' }}>Comprobante #{seleccionado.id_comprobante}</h5>
+                      <div className="d-flex gap-2">
+                        <button className="btn btn-outline-secondary btn-sm" onClick={exportarPdf} disabled={!seleccionado || seleccionado.estado !== '1'}>
+                          Exportar PDF
+                        </button>
+                      </div>
+                    </div>
+                    <div className="mb-2 text-muted">Paciente: {seleccionado.paciente_nombre} {seleccionado.paciente_apellido} · Fecha: {fmtDMY(seleccionado.fecha_emision)}</div>
+                    <div className="table-responsive">
+                      <table className="table table-sm">
+                        <thead>
+                          <tr>
+                            <th>Concepto</th>
+                            <th className="text-end">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(seleccionado.detalles||[]).map(d => (
+                            <tr key={d.id_detalle_comprobante}>
+                              <td>{d.concepto_pago || d.titulo_examen}</td>
+                              <td className="text-end">$ {Number(d.total||0).toFixed(2)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr>
+                            <td className="text-end fw-bold">Total</td>
+                            <td className="text-end fw-bold">$ {Number(seleccionado.total||0).toFixed(2)}</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+
+                    {seleccionado.estado === '0' ? (
+                      <div className="d-flex align-items-end gap-2 flex-wrap">
+                        <div style={{ minWidth: 240 }}>
+                          <label className="form-label small">Método de pago</label>
+                          <select className="form-select" value={metodoPago} onChange={(e)=>setMetodoPago(e.target.value)}>
+                            <option value="">Seleccione método</option>
+                            <option value="efectivo">Efectivo</option>
+                            <option value="tarjeta">Tarjeta de Crédito/Débito</option>
+                            <option value="transferencia">Transferencia Bancaria</option>
+                          </select>
+                        </div>
+                        <button className="btn btn-info text-white" onClick={procesarPago}>Procesar pago</button>
+                      </div>
+                    ) : (
+                      <div className="text-success">Pago completado ({seleccionado.tipo_pago==='E'?'Efectivo':seleccionado.tipo_pago==='T'?'Tarjeta':'Transferencia'})</div>
+                    )}
+                  </>
+                )}
               </div>
             </div>
           </div>
