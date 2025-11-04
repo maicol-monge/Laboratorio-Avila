@@ -7,6 +7,7 @@ export default function ExamenHpEgh({
   pacientes,
   selectedPaciente,
   setSelectedPaciente,
+  lockPaciente,
 }) {
   const handleChange = (e, section, field) => {
     if (section) {
@@ -27,6 +28,7 @@ export default function ExamenHpEgh({
         pacientes={pacientes}
         selectedPaciente={selectedPaciente}
         setSelectedPaciente={setSelectedPaciente}
+        lockPaciente={lockPaciente}
       />
 
       <div style={{ fontWeight: "bold", fontSize: 20, color: "#00C2CC", margin: "32px 0 16px 0", textAlign: "center" }}>

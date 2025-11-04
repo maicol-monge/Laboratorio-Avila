@@ -21,6 +21,7 @@ import CrudExamenes from "./Examenes/CrudExamenes";
 import RealizarExamen from "./Examenes/RealizarExamen";
 import EditarExamenRealizado from "./Examenes/EditarExamenRealizado";
 import Pagos from "./Pagos/Pagos";
+import Estadisticas from "./Estadisticas/Estadisticas";
 import "./App.css";
 
 function App() {
@@ -89,6 +90,7 @@ function InnerApp() {
             element={<EditarExamenRealizado />}
           />
           <Route path="/Pagos" element={<Pagos />} />
+          <Route path="/estadisticas" element={<Estadisticas />} />
         </Route>
       </Routes>
     </>

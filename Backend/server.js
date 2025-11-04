@@ -9,6 +9,8 @@ const inventarioRoutes = require("./routes/inventarioRoutes");
 const citaRoutes = require("./routes/citaRoutes");
 const examenRoutes = require("./routes/examenRoutes");
 const examen_realizadoRoutes = require("./routes/examen_realizadoRoutes");
+const comprobanteRoutes = require("./routes/comprobanteRoutes");
+const statsRoutes = require("./routes/statsRoutes");
 
 const app = express(); //Instancia del servidor
 app.use(cors()); //Evitar errores al consumir en React
@@ -29,6 +31,8 @@ app.use("/api/inventario", inventarioRoutes);
 app.use("/api/citas", citaRoutes);
 app.use("/api/examenes", examenRoutes);
 app.use("/api/examenes_realizados", examen_realizadoRoutes);
+app.use("/api/comprobantes", comprobanteRoutes);
+app.use("/api/stats", statsRoutes);
 
 // Iniciar servidor
 const PORT = process.env.PORT || 5000;
