@@ -332,9 +332,50 @@ export default function Citas() {
 		}
 	}
 
+	// Autoseleccionar cuando la búsqueda produce exactamente una coincidencia
+	useEffect(() => {
+		// Solo aplicar autoselección si no estamos editando
+		if (editingId) return;
+		
+		const q = (pacienteQuery || "").trim().toLowerCase();
+		if (!q) return; // no modificar selección si no hay búsqueda
+
+		const matches = pacientes.filter((p) => {
+			const name = `${p.nombre || ""} ${p.apellido || ""}`.toLowerCase();
+			const dui = (p.dui || "").toLowerCase();
+			const qDigits = q.replace(/\D/g, "");
+			return (
+				name.includes(q) ||
+				dui.includes(q) ||
+				(qDigits && (p.dui || "").replace(/\D/g, "").includes(qDigits))
+			);
+		});
+
+		if (matches.length === 1) {
+			const m = matches[0];
+			if (String(form.id_paciente) !== String(m.id_paciente)) {
+				setForm(prev => ({ ...prev, id_paciente: String(m.id_paciente) }));
+				// No establecer editingPacienteLabel aquí para que siga mostrando el select
+			}
+		} else if (matches.length > 1) {
+			// si existen varias coincidencias y la selección actual no está entre ellas,
+			// limpiar la selección para que el usuario elija explícitamente
+			const inMatches = matches.some((m) => String(m.id_paciente) === String(form.id_paciente));
+			if (!inMatches && !editingId) {
+				setForm(prev => ({ ...prev, id_paciente: '' }));
+			}
+		} else if (matches.length === 0) {
+			// Si no hay matches y había algo seleccionado por autoselección, limpiar
+			if (form.id_paciente && !editingPacienteLabel) {
+				setForm(prev => ({ ...prev, id_paciente: '' }));
+			}
+		}
+	}, [pacienteQuery, pacientes, form.id_paciente, editingId, editingPacienteLabel]);
+
 	async function openNew() {
 		setForm({ id_paciente: '', fecha_cita: '', hora_cita: '', observaciones: '', estado: '1' });
 		setEditingPacienteLabel('');
+		setPacienteQuery(''); // Limpiar búsqueda al abrir modal nuevo
 		// si venimos con preselectPacienteId, intentar cargar y fijar el paciente
 		if (preselectPacienteIdFromLocation) {
 			try {
@@ -917,8 +958,8 @@ async function handleFinalizar(id) {
                                         <div>
                                             {/* ocultar toggle si ya hay paciente preseleccionado */}
                                             {!editingId && !form.id_paciente && (
-                                                <button type="button" className="btn btn-sm btn-outline-secondary me-2" onClick={() => { setQuickMode(q => !q); if (!quickMode) setPacienteQuery(''); }}>
-                                                    {quickMode ? 'Usar select' : 'Crear paciente rápido'}
+                                                <button type="button" className="btn btn-info text-white w-100" onClick={() => { setQuickMode(q => !q); if (!quickMode) setPacienteQuery(''); }}>
+                                                    {quickMode ? 'Seleccionar paciente' : '+ Crear paciente rápido'}
                                                 </button>
                                             )}
                                         </div>
@@ -930,11 +971,11 @@ async function handleFinalizar(id) {
 									<label className="form-label">Paciente</label>
 									<div className="form-control-plaintext">{editingPacienteLabel || (form.id_paciente ? `Paciente #${form.id_paciente}` : '—')}</div>
 								</div>
-							) : form.id_paciente ? (
-								// preseleccionado desde ficha: mostrar como readonly
+							) : (editingPacienteLabel && form.id_paciente) ? (
+								// preseleccionado desde ficha con label: mostrar como readonly
 								<div className="mb-3">
 									<label className="form-label">Paciente</label>
-									<div className="form-control-plaintext">{editingPacienteLabel || (form.id_paciente ? `Paciente #${form.id_paciente}` : '—')}</div>
+									<div className="form-control-plaintext">{editingPacienteLabel}</div>
 								</div>
 							) : (!quickMode && (
 										<div className="mb-3">
