@@ -108,20 +108,88 @@ exports.updateExamenRealizado = (req, res) => {
 };
 
 // Eliminar un examen realizado
+// Reglas:
+// - Si el examen pertenece a un comprobante PAGADO (c.estado='1'), no permite eliminar.
+// - Si pertenece a comprobantes PENDIENTES (c.estado='0'), elimina el detalle del comprobante y actualiza su total.
+//   Si un comprobante queda sin detalles, elimina el comprobante.
+// - Finalmente hace soft-delete del examen (estado='0').
 exports.deleteExamenRealizado = (req, res) => {
   const { id } = req.params;
-  db.query(
-    "UPDATE examen_realizado SET estado = '0' WHERE id_examen_realizado = ?",
-    [id],
-    (err, results) => {
+
+  db.beginTransaction((txErr) => {
+    if (txErr) return res.status(500).json({ error: "No se pudo iniciar la transacción" });
+
+    const qLinks = `SELECT c.id_comprobante, c.estado AS estado_comprobante, d.total
+                    FROM detalle_comprobante d
+                    JOIN comprobante c ON d.id_comprobante = c.id_comprobante
+                    WHERE d.id_examen_realizado = ? AND d.estado = '1'`;
+    db.query(qLinks, [id], (err, rows) => {
       if (err) {
-        return res
-          .status(500)
-          .json({ error: "Error al eliminar el examen realizado" });
+        db.rollback(() => {});
+        return res.status(500).json({ error: "Error verificando vínculos con comprobantes" });
       }
-      res.json({ message: "Examen realizado eliminado exitosamente" });
-    }
-  );
+
+      // Si está en algún comprobante pagado, no permitir
+      const anyPaid = (rows || []).some((r) => String(r.estado_comprobante) === '1');
+      if (anyPaid) {
+        db.rollback(() => {});
+        return res.status(400).json({ error: "No se puede eliminar: el examen forma parte de un comprobante pagado." });
+      }
+
+      // Procesar comprobantes pendientes
+      const pendings = (rows || []).filter((r) => String(r.estado_comprobante) === '0');
+
+      const processNextPending = (idx) => {
+        if (idx >= pendings.length) return finalizeDelete();
+        const { id_comprobante } = pendings[idx];
+
+        // Marcar detalle como eliminado
+        const qDelDet = `UPDATE detalle_comprobante SET estado='0', updated_at=NOW()
+                         WHERE id_comprobante = ? AND id_examen_realizado = ? AND estado='1'`;
+        db.query(qDelDet, [id_comprobante, id], (e1) => {
+          if (e1) { db.rollback(() => {}); return res.status(500).json({ error: "Error al actualizar detalle" }); }
+          // Recalcular total y cantidad de detalles restantes
+          const qSum = `SELECT COALESCE(SUM(total),0) AS suma, COUNT(*) AS cnt
+                        FROM detalle_comprobante
+                        WHERE id_comprobante = ? AND estado='1'`;
+          db.query(qSum, [id_comprobante], (e2, sumRows) => {
+            if (e2) { db.rollback(() => {}); return res.status(500).json({ error: "Error al recalcular comprobante" }); }
+            const suma = Number((sumRows && sumRows[0] && sumRows[0].suma) || 0);
+            const cnt = Number((sumRows && sumRows[0] && sumRows[0].cnt) || 0);
+            if (cnt === 0) {
+              // Sin detalles activos: eliminar primero los detalles (para evitar restricción FK) y luego el comprobante
+              db.query(`DELETE FROM detalle_comprobante WHERE id_comprobante = ?`, [id_comprobante], (e3a) => {
+                if (e3a) { db.rollback(() => {}); return res.status(500).json({ error: "Error al limpiar detalles del comprobante" }); }
+                db.query(`DELETE FROM comprobante WHERE id_comprobante = ? AND estado='0'`, [id_comprobante], (e3) => {
+                  if (e3) { db.rollback(() => {}); return res.status(500).json({ error: "Error al eliminar comprobante vacío" }); }
+                  processNextPending(idx + 1);
+                });
+              });
+            } else {
+              // Actualizar total
+              db.query(`UPDATE comprobante SET total = ?, updated_at=NOW() WHERE id_comprobante = ?`, [suma, id_comprobante], (e4) => {
+                if (e4) { db.rollback(() => {}); return res.status(500).json({ error: "Error al actualizar total de comprobante" }); }
+                processNextPending(idx + 1);
+              });
+            }
+          });
+        });
+      };
+
+      const finalizeDelete = () => {
+        // Soft-delete del examen
+        db.query(`UPDATE examen_realizado SET estado='0' WHERE id_examen_realizado = ?`, [id], (e5) => {
+          if (e5) { db.rollback(() => {}); return res.status(500).json({ error: "Error al eliminar examen" }); }
+          db.commit((cErr) => {
+            if (cErr) { db.rollback(() => {}); return res.status(500).json({ error: "Error al confirmar eliminación" }); }
+            res.json({ message: "Examen realizado eliminado exitosamente" });
+          });
+        });
+      };
+
+      processNextPending(0);
+    });
+  });
 };
 
 // Exportar examen realizado a .docx usando plantilla con Content Controls y easy-template-x

@@ -175,8 +175,10 @@ function Examenes() {
             showConfirmButton: false
           });
         })
-        .catch(() => {
-          Swal.fire({ title: 'Error', text: 'No se pudo eliminar el examen', icon: 'error' });
+        .catch((err) => {
+          const msg = (err && err.response && err.response.data && err.response.data.error)
+            || 'No se pudo eliminar el examen';
+          Swal.fire({ title: 'Error', text: msg, icon: 'error' });
         });
     });
   };

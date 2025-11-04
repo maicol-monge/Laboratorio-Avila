@@ -6,6 +6,7 @@ const {
   getComprobanteById,
   pagarComprobante,
   exportComprobantePdf,
+  getComprobanteStats,
 } = require("../controllers/comprobanteController");
 
 const router = express.Router();
@@ -15,6 +16,9 @@ router.post("/", authenticateToken, createComprobante);
 
 // Listar comprobantes (opcional ?estado=0|1)
 router.get("/", authenticateToken, getComprobantes);
+
+// Estadísticas (ignoran filtro de estado): ?from=YYYY-MM-DD&to=YYYY-MM-DD&paciente=...&examen=...
+router.get("/stats", authenticateToken, getComprobanteStats);
 
 // Obtener comprobante con detalles
 router.get("/:id", authenticateToken, getComprobanteById);

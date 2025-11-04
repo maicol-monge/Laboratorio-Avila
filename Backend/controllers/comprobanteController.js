@@ -1,5 +1,7 @@
 const db = require("../config/db");
 const PDFDocument = require("pdfkit");
+const fs = require("fs");
+const path = require("path");
 
 // Mapear método legible a código de un caracter en BD
 const metodoToCode = (m) => {
@@ -145,7 +147,7 @@ exports.pagarComprobante = (req, res) => {
   });
 };
 
-// Exportar comprobante a PDF desde cero
+// Exportar comprobante a PDF (diseño tipo factura con logo)
 exports.exportComprobantePdf = (req, res) => {
   const { id } = req.params;
   const headSql = `SELECT c.*, p.nombre AS paciente_nombre, p.apellido AS paciente_apellido
@@ -183,7 +185,7 @@ exports.exportComprobantePdf = (req, res) => {
       const fileNameFallback = fileNameUtf8;
 
       // Construir PDF en memoria
-      const doc = new PDFDocument({ size: 'A4', margin: 50 });
+      const doc = new PDFDocument({ size: 'A4', margin: 40 });
       const chunks = [];
       doc.on('data', (c) => chunks.push(c));
       doc.on('end', () => {
@@ -197,56 +199,130 @@ exports.exportComprobantePdf = (req, res) => {
         res.send(pdfBuf);
       });
 
-      // Branding / encabezado
+      // Encabezado con logo y datos del laboratorio
       const accent = '#00C2CC';
-      doc.fillColor(accent).fontSize(22).text('Comprobante de Pago', { align: 'left' });
-      doc.moveDown(0.5);
-      doc.fillColor('#666666').fontSize(10).text(`Fecha: ${fecha}`);
-      doc.moveDown(0.5);
-      doc.fillColor('#000000').fontSize(12).text(`Paciente: ${head.paciente_nombre || ''} ${head.paciente_apellido || ''}`);
-      doc.text(`No. Comprobante: ${head.id_comprobante}`);
-      doc.text(`Estado: ${head.estado === '1' ? 'Pagado' : 'Pendiente'}`);
+      const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+      const leftX = doc.page.margins.left;
+      const rightX = leftX + pageWidth;
+
+      // Intentar cargar el logo del frontend
+      let logoPath = path.join(__dirname, '..', '..', 'Frontend', 'src', 'assets', 'Lab Avila Logo.png');
+      let hasLogo = false;
+      try { hasLogo = fs.existsSync(logoPath); } catch (_) { hasLogo = false; }
+
+      const headerHeight = 70;
+      doc.roundedRect(leftX, doc.y, pageWidth, headerHeight, 6).fillOpacity(0.06).fill(accent).fillOpacity(1).strokeColor('#e7f6f7').stroke();
+      doc.save();
+      if (hasLogo) {
+        try { doc.image(logoPath, leftX + 10, doc.y + 10, { height: 50 }); } catch (_) {}
+      }
+      doc.fillColor('#111').fontSize(18).text('Laboratorio Ávila', hasLogo ? leftX + 80 : leftX + 12, doc.y + 18);
+      doc.fillColor('#666').fontSize(10).text('Servicios de Análisis Clínicos', hasLogo ? leftX + 80 : leftX + 12, doc.y + 40);
+      doc.restore();
+
+      // Bloque de datos del comprobante/cliente
+      doc.moveDown(2);
+      const blockY = doc.y;
+      doc.roundedRect(leftX, blockY, pageWidth, 70, 6).strokeColor('#eef0f2').stroke();
+      doc.fontSize(11).fillColor('#000').text(`Paciente: ${head.paciente_nombre || ''} ${head.paciente_apellido || ''}`, leftX + 10, blockY + 10);
+      doc.fillColor('#555').fontSize(10).text(`Fecha: ${fecha}`, leftX + 10, blockY + 30);
+      doc.text(`Comprobante: #${head.id_comprobante}`, leftX + 10, blockY + 46);
+      const estadoStr = head.estado === '1' ? 'Pagado' : 'Pendiente';
+      doc.fillColor(head.estado === '1' ? '#0a8754' : '#b86b00').fontSize(12).text(estadoStr, rightX - 120, blockY + 12, { width: 110, align: 'right' });
       if (head.estado === '1') {
         const metodo = head.tipo_pago === 'E' ? 'Efectivo' : head.tipo_pago === 'T' ? 'Tarjeta' : head.tipo_pago === 'B' ? 'Transferencia' : '';
-        doc.text(`Método de pago: ${metodo}`);
+        doc.fillColor('#333').fontSize(10).text(`Método: ${metodo}`, rightX - 120, blockY + 36, { width: 110, align: 'right' });
       }
-      doc.moveDown(1);
+      doc.moveDown(6);
 
-      // Tabla simple de conceptos
-      const startY = doc.y;
-      const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-      const col1 = doc.page.margins.left; // concepto
-      const col2 = doc.page.margins.left + pageWidth * 0.75; // total
+      // Tabla de conceptos con encabezado sombreado
+      const tableY = doc.y + 4;
+      const colConceptoW = Math.floor(pageWidth * 0.7);
+      const colTotalW = pageWidth - colConceptoW;
 
-      doc.fontSize(11).fillColor('#000').text('Concepto', col1, startY, { width: pageWidth * 0.75 });
-      doc.text('Total', col2, startY, { width: pageWidth * 0.25, align: 'right' });
-      doc.moveDown(0.5);
-      doc.strokeColor('#dddddd').moveTo(col1, doc.y).lineTo(col1 + pageWidth, doc.y).stroke();
-      doc.moveDown(0.5);
+      // Header de la tabla
+      doc.rect(leftX, tableY, pageWidth, 24).fill('#f6f8fa');
+      doc.fillColor('#111').fontSize(11).text('Concepto', leftX + 8, tableY + 6, { width: colConceptoW - 12 });
+      doc.text('Total', leftX + colConceptoW + 8, tableY + 6, { width: colTotalW - 12, align: 'right' });
+      doc.moveTo(leftX, tableY + 24).lineTo(rightX, tableY + 24).strokeColor('#e5e7eb').stroke();
 
       let total = 0;
+      let y = tableY + 28;
       detalles.forEach((d) => {
         const concepto = d.concepto_pago || d.titulo_examen || '';
         const monto = Number(d.total || 0);
         total += monto;
-        const y = doc.y;
-        doc.fontSize(10).fillColor('#333').text(concepto, col1, y, { width: pageWidth * 0.75 });
-        doc.text(`$ ${monto.toFixed(2)}`, col2, y, { width: pageWidth * 0.25, align: 'right' });
-        doc.moveDown(0.2);
+        doc.fillColor('#333').fontSize(10).text(concepto, leftX + 8, y, { width: colConceptoW - 12 });
+        doc.text(`$ ${monto.toFixed(2)}`, leftX + colConceptoW + 8, y, { width: colTotalW - 12, align: 'right' });
+        y += 20;
+        doc.moveTo(leftX, y - 4).lineTo(rightX, y - 4).strokeColor('#f0f2f4').stroke();
       });
 
       // Total
-      doc.moveDown(0.5);
-      doc.strokeColor('#dddddd').moveTo(col1, doc.y).lineTo(col1 + pageWidth, doc.y).stroke();
-      doc.moveDown(0.4);
-      doc.fontSize(11).fillColor('#000')
-        .text('Total', col1 + pageWidth * 0.5, doc.y, { width: pageWidth * 0.25, align: 'right' })
-        .text(`$ ${Number(head.total || total).toFixed(2)}`, col2, doc.y, { width: pageWidth * 0.25, align: 'right' });
+      y += 4;
+      doc.rect(leftX, y, pageWidth, 28).fill('#f9fafb');
+      doc.fillColor('#111').fontSize(11).text('Total', leftX + colConceptoW + 8 - 120, y + 8, { width: 90, align: 'right' });
+      doc.text(`$ ${Number(head.total || total).toFixed(2)}`, leftX + colConceptoW + 8, y + 8, { width: colTotalW - 12, align: 'right' });
 
-      doc.moveDown(1);
+      // Pie de página
+      doc.moveDown(3);
       doc.fillColor('#888').fontSize(9).text('Gracias por su preferencia.', { align: 'left' });
+      doc.fillColor('#bbb').fontSize(8).text('Este comprobante no constituye documento fiscal.', { align: 'left' });
 
       doc.end();
     });
   });
+};
+
+// Estadísticas de comprobantes (ignoran filtro de estado): totales de caja, pagado y pendiente
+// Query params:
+// - from: YYYY-MM-DD (opcional)
+// - to: YYYY-MM-DD (opcional)
+// - paciente: string (opcional, busca en nombre+apellido)
+// - examen: string (opcional, coincide por concepto_pago o título de examen)
+exports.getComprobanteStats = (req, res) => {
+  try {
+    const { from, to, paciente, examen } = req.query || {};
+    const params = [];
+    let where = " WHERE 1=1 ";
+
+    if (from) { where += " AND DATE(c.fecha_emision) >= ? "; params.push(from); }
+    if (to) { where += " AND DATE(c.fecha_emision) <= ? "; params.push(to); }
+    if (paciente && String(paciente).trim()) {
+      where += " AND CONCAT(IFNULL(p.nombre,''), ' ', IFNULL(p.apellido,'')) LIKE ? ";
+      params.push(`%${String(paciente).trim()}%`);
+    }
+    if (examen && String(examen).trim()) {
+      where += ` AND EXISTS (
+        SELECT 1 FROM detalle_comprobante d
+        LEFT JOIN examen_realizado er ON d.id_examen_realizado = er.id_examen_realizado
+        LEFT JOIN examen e ON er.id_examen = e.id_examen
+        WHERE d.id_comprobante = c.id_comprobante AND d.estado = '1'
+          AND (d.concepto_pago = ? OR e.titulo_examen = ?)
+      )`;
+      const ex = String(examen).trim();
+      params.push(ex, ex);
+    }
+
+    const sql = `
+      SELECT
+        COALESCE(SUM(c.total), 0) AS totalCaja,
+        COALESCE(SUM(CASE WHEN c.estado = '1' THEN c.total ELSE 0 END), 0) AS totalPagado,
+        COALESCE(SUM(CASE WHEN c.estado = '0' THEN c.total ELSE 0 END), 0) AS totalPendiente
+      FROM comprobante c
+      LEFT JOIN paciente p ON c.id_paciente = p.id_paciente
+      ${where}
+    `;
+    db.query(sql, params, (err, rows) => {
+      if (err) return res.status(500).json({ error: "Error al calcular estadísticas" });
+      const r = (rows && rows[0]) || {};
+      res.json({
+        totalCaja: Number(r.totalCaja || 0),
+        totalPagado: Number(r.totalPagado || 0),
+        totalPendiente: Number(r.totalPendiente || 0),
+      });
+    });
+  } catch (_) {
+    return res.status(500).json({ error: "Error inesperado en estadísticas" });
+  }
 };
