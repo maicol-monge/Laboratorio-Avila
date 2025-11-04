@@ -340,7 +340,7 @@ const PagosAvila = () => {
                 <div className="d-flex flex-wrap gap-3 mt-3">
                   <div className="card border-0" style={{ background: '#E8F4FF' }}>
                     <div className="card-body py-2 px-3">
-                      <div className="small text-muted">Recaudado</div>
+                      <div className="small text-muted">Ingesos</div>
                       <div className="h5 mb-0" style={{ color: '#0b5ed7' }}>$ {stats.totalCaja.toFixed(2)}</div>
                       {loadingStats && <div className="small text-muted">Actualizando…</div>}
                     </div>

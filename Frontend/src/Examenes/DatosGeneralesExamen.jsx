@@ -110,7 +110,7 @@ export default function DatosGeneralesExamen({
         // ...otros campos si tienes...
       }));
     }
-  }, [selectedPaciente, pacientes, setForm]);
+  }, [selectedPaciente, pacientes, tempPacientes, setForm]);
 
   // Autoseleccionar cuando la búsqueda produce exactamente una coincidencia
   useEffect(() => {
@@ -383,7 +383,8 @@ export default function DatosGeneralesExamen({
             className="form-control"
             value={form.edad || ""}
             onChange={(e) => handleChange(e, "edad")}
-            readOnly={lockPaciente}
+            readOnly
+            style={{ backgroundColor: '#f0f0f0', cursor: 'not-allowed' }}
           />
         </div>
         <div style={{ flex: 1 }}>
@@ -392,7 +393,8 @@ export default function DatosGeneralesExamen({
             className="form-control"
             value={form.sexo || ""}
             onChange={(e) => handleChange(e, "sexo")}
-            readOnly={lockPaciente}
+            readOnly
+            style={{ backgroundColor: '#f0f0f0', cursor: 'not-allowed' }}
           />
         </div>
         <div style={{ flex: 1 }}>

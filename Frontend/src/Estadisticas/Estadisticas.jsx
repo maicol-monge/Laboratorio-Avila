@@ -294,7 +294,7 @@ export default function Estadisticas() {
   const summaryCards = () => {
     if (tipo === 'ingresos') return (
       <div className="d-flex flex-wrap gap-3">
-        <SummaryCard title="Recaudado" value={`$ ${(Number(data.totalCaja||0)).toFixed(2)}`} color="#E8F4FF" />
+        <SummaryCard title="Ingresos" value={`$ ${(Number(data.totalCaja||0)).toFixed(2)}`} color="#E8F4FF" />
         <SummaryCard title="Pagado" value={`$ ${(Number(data.totalPagado||0)).toFixed(2)}`} color="#E8FFF5" />
         <SummaryCard title="Pendiente" value={`$ ${(Number(data.totalPendiente||0)).toFixed(2)}`} color="#FFF5E8" />
       </div>

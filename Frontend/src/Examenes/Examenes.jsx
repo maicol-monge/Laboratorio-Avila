@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import DatePicker from "react-datepicker";
 import DocxPrintPreview from "../components/DocxPrintPreview";
+import mammoth from "mammoth";
 
 function Examenes() {
   const [examenesRealizados, setExamenesRealizados] = useState([]);
@@ -236,39 +237,103 @@ function Examenes() {
     }
   };
 
-  // Imprimir PDF generado desde la misma plantilla de Word (requiere LibreOffice en servidor)
+  // Imprimir: convertir DOCX completo a HTML y abrir ventana de impresión
   const printExamen = async (id) => {
-    // Intento 1: PDF por backend (LibreOffice). Si falla, fallback a vista DOCX en el navegador con opción de imprimir.
     try {
+      // Obtener el DOCX completo y procesado del servidor (mismo que exportar)
       const res = await axios.get(
-        `http://localhost:5000/api/examenes_realizados/${id}/export-pdf`,
+        `http://localhost:5000/api/examenes_realizados/${id}/export`,
         {
-          responseType: 'blob',
+          responseType: 'arraybuffer',
           headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
         }
       );
-      const blob = new Blob([res.data], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      const win = window.open(url, '_blank');
-      if (!win) throw new Error('Bloqueado por el navegador');
-      setTimeout(() => URL.revokeObjectURL(url), 60 * 1000);
-      return;
-    } catch (err) {
-      // Fallback: obtener DOCX y mostrar previsualización con impresión integrada (sin LibreOffice)
-      try {
-        const resDocx = await axios.get(
-          `http://localhost:5000/api/examenes_realizados/${id}/export`,
-          {
-            responseType: 'blob',
-            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-          }
-        );
-        const blob = new Blob([resDocx.data], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-        setPreviewDocxBlob(blob);
-        setShowDocxPreview(true);
-      } catch (e2) {
-        Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo mostrar el documento para imprimir. Intente exportar a .docx o contacte al administrador.' });
+      
+      // Convertir DOCX completo a HTML usando mammoth con opciones para preservar formato
+      const result = await mammoth.convertToHtml(
+        { arrayBuffer: res.data },
+        {
+          includeDefaultStyleMap: true,
+          includeEmbeddedStyleMap: true,
+          convertImage: mammoth.images.imgElement(function(image) {
+            return image.read("base64").then(function(imageBuffer) {
+              return {
+                src: "data:" + image.contentType + ";base64," + imageBuffer
+              };
+            });
+          })
+        }
+      );
+      const htmlContent = result.value;
+      
+      // Crear ventana de impresión con el HTML del documento completo
+      const printWindow = window.open('', '_blank', 'width=900,height=800');
+      if (!printWindow) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Ventana bloqueada',
+          text: 'Por favor, permita ventanas emergentes para poder imprimir.',
+        });
+        return;
       }
+      
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <title>Examen - Impresión</title>
+            <style>
+              * {
+                box-sizing: border-box;
+              }
+              @page {
+                size: letter;
+                margin: 0;
+              }
+              body {
+                font-family: Calibri, Arial, sans-serif;
+                margin: 0;
+                padding: 0;
+                background: white;
+              }
+              /* Preservar todos los estilos inline del documento */
+              table {
+                border-collapse: collapse;
+              }
+              @media print {
+                body {
+                  margin: 0;
+                  padding: 0;
+                }
+                @page {
+                  margin: 0;
+                }
+              }
+            </style>
+          </head>
+          <body>
+            ${htmlContent}
+            <script>
+              window.onload = function() {
+                setTimeout(function() {
+                  window.print();
+                }, 400);
+              };
+            </script>
+          </body>
+        </html>
+      `);
+      
+      printWindow.document.close();
+      
+    } catch (err) {
+      console.error('Error al imprimir examen:', err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo preparar el documento para imprimir. Por favor, use la opción Exportar e imprima desde Word.',
+      });
     }
   };
 

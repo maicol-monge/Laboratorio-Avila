@@ -280,6 +280,7 @@ export default function RealizarExamen() {
   // Modo edición de un examen ya realizado
   const location = useLocation();
   const editId = location?.state?.editId || null;
+  const preselectedPacienteId = location?.state?.preselectedPacienteId || null; // nuevo: paciente precargado desde ficha
   const [isExistingEdit, setIsExistingEdit] = useState(!!editId);
   const [isFieldsEditable, setIsFieldsEditable] = useState(false); // bloquea campos al entrar
   const navigate = useNavigate();
@@ -296,6 +297,24 @@ export default function RealizarExamen() {
       })
       .then((res) => setPacientes(res.data));
   }, []);
+
+  // Precargar paciente si viene desde la ficha
+  useEffect(() => {
+    if (preselectedPacienteId && !editId && pacientes.length > 0) {
+      const pacienteId = String(preselectedPacienteId);
+      setSelectedPaciente(pacienteId);
+      
+      // Cargar edad y sexo del paciente inmediatamente
+      const paciente = pacientes.find(p => String(p.id_paciente) === pacienteId);
+      if (paciente) {
+        setForm(f => ({
+          ...f,
+          edad: paciente.edad ?? '',
+          sexo: paciente.sexo ?? '',
+        }));
+      }
+    }
+  }, [preselectedPacienteId, editId, pacientes]);
 
   useEffect(() => {
     const ex = examenes.find((x) => x.titulo_examen === selectedPlantilla);
