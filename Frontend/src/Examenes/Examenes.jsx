@@ -19,7 +19,10 @@ function Examenes() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterTipoExamen, setFilterTipoExamen] = useState(""); // id_examen or ''
   // default date range: start = today - 10 days, end = today (YYYY-MM-DD)
-  const getYMD = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const getYMD = (d) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+      d.getDate()
+    ).padStart(2, "0")}`;
   const today = new Date();
   const ymdToday = getYMD(today);
   const ymdMinus10 = getYMD(new Date(today.getTime() - 10 * 24 * 3600 * 1000));
@@ -41,30 +44,7 @@ function Examenes() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-
-    // Cargar pacientes
-    axios
-      .get("http://localhost:5000/api/pacientes", {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      })
-      .then((res) => setPacientes(res.data));
-
-    // Cargar exámenes plantilla
-    axios
-      .get("http://localhost:5000/api/examenes", {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      })
-      .then((res) => setExamenes(res.data));
   }, []);
-
-  // reset pagination when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, filterTipoExamen, filterStartDate, filterEndDate, examenesRealizados]);
 
   // Helpers
   const parseYMDToLocalDate = (ymd) => {
@@ -78,24 +58,24 @@ function Examenes() {
   };
 
   const formatFecha = (val) => {
-    if (!val && val !== 0) return '';
+    if (!val && val !== 0) return "";
     try {
       // accept Date or string; if string, try to use first 10 chars (YYYY-MM-DD)
       let dt = null;
       if (val instanceof Date) {
         dt = val;
-      } else if (typeof val === 'string') {
-        const ymd = val.slice(0,10);
+      } else if (typeof val === "string") {
+        const ymd = val.slice(0, 10);
         const d = parseYMDToLocalDate(ymd);
         dt = d || new Date(val);
       } else {
         dt = new Date(val);
       }
-      const dd = String(dt.getDate()).padStart(2,'0');
-      const mm = String(dt.getMonth()+1).padStart(2,'0');
+      const dd = String(dt.getDate()).padStart(2, "0");
+      const mm = String(dt.getMonth() + 1).padStart(2, "0");
       const yyyy = String(dt.getFullYear());
       return `${dd}-${mm}-${yyyy}`;
-    } catch(e) {
+    } catch (e) {
       return String(val);
     }
   };
@@ -123,63 +103,82 @@ function Examenes() {
       });
     }
     if (filterTipoExamen) {
-      list = list.filter((ex) => String(ex.id_examen) === String(filterTipoExamen));
+      list = list.filter(
+        (ex) => String(ex.id_examen) === String(filterTipoExamen)
+      );
     }
     // date filter using YYYY-MM-DD lexicographic compare
-    const start = filterStartDate || '';
-    const end = filterEndDate || '';
+    const start = filterStartDate || "";
+    const end = filterEndDate || "";
     list = list.filter((ex) => {
-      const ymd = String(ex.created_at || '').slice(0,10);
+      const ymd = String(ex.created_at || "").slice(0, 10);
       if (start && ymd < start) return false;
       if (end && ymd > end) return false;
       return true;
     });
     // sort by created_at desc (most recent first)
-    list.sort((a,b) => {
-      const ay = String(a.created_at||'').slice(0,19);
-      const by = String(b.created_at||'').slice(0,19);
+    list.sort((a, b) => {
+      const ay = String(a.created_at || "").slice(0, 19);
+      const by = String(b.created_at || "").slice(0, 19);
       return by.localeCompare(ay);
     });
     return list;
-  }, [examenesRealizados, searchQuery, filterTipoExamen, filterStartDate, filterEndDate, pacientes, examenes]);
+  }, [
+    examenesRealizados,
+    searchQuery,
+    filterTipoExamen,
+    filterStartDate,
+    filterEndDate,
+    pacientes,
+    examenes,
+  ]);
 
   // Pagination derived values
   const totalPages = Math.max(1, Math.ceil(filteredSorted.length / perPage));
-  const currentData = filteredSorted.slice((currentPage - 1) * perPage, currentPage * perPage);
+  const currentData = filteredSorted.slice(
+    (currentPage - 1) * perPage,
+    currentPage * perPage
+  );
 
   // Delete handler
   const handleDelete = (id) => {
     Swal.fire({
-      title: '¿Eliminar este examen?',
-      text: 'Esta acción no se puede deshacer.',
-      icon: 'warning',
+      title: "¿Eliminar este examen?",
+      text: "Esta acción no se puede deshacer.",
+      icon: "warning",
       showCancelButton: true,
-      confirmButtonText: 'Sí, eliminar',
-      cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#d33',
-      cancelButtonColor: '#6c757d',
-      showClass: { popup: 'animate__animated animate__swing' },
-      hideClass: { popup: 'animate__animated animate__fadeOut' }
+      confirmButtonText: "Sí, eliminar",
+      cancelButtonText: "Cancelar",
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#6c757d",
+      showClass: { popup: "animate__animated animate__swing" },
+      hideClass: { popup: "animate__animated animate__fadeOut" },
     }).then((result) => {
       if (!result.isConfirmed) return;
       axios
         .delete(`http://localhost:5000/api/examenes_realizados/${id}`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         })
         .then(() => {
-          setExamenesRealizados((prev) => prev.filter((x) => x.id_examen_realizado !== id));
+          setExamenesRealizados((prev) =>
+            prev.filter((x) => x.id_examen_realizado !== id)
+          );
           Swal.fire({
-            title: 'Eliminado',
-            text: 'El examen fue eliminado correctamente',
-            icon: 'success',
+            title: "Eliminado",
+            text: "El examen fue eliminado correctamente",
+            icon: "success",
             timer: 1400,
-            showConfirmButton: false
+            showConfirmButton: false,
           });
         })
         .catch((err) => {
-          const msg = (err && err.response && err.response.data && err.response.data.error)
-            || 'No se pudo eliminar el examen';
-          Swal.fire({ title: 'Error', text: msg, icon: 'error' });
+          const msg =
+            (err &&
+              err.response &&
+              err.response.data &&
+              err.response.data.error) ||
+            "No se pudo eliminar el examen";
+          Swal.fire({ title: "Error", text: msg, icon: "error" });
         });
     });
   };
@@ -206,21 +205,23 @@ function Examenes() {
       a.href = url;
       // Usar el nombre sugerido por el servidor en Content-Disposition o X-Filename si está disponible
       const headers = res.headers || {};
-      let cd = headers['content-disposition'] || headers['Content-Disposition'];
-      let suggested = headers['x-filename'] || headers['X-Filename'];
+      let cd = headers["content-disposition"] || headers["Content-Disposition"];
+      let suggested = headers["x-filename"] || headers["X-Filename"];
       if (!suggested && cd) {
-        const match = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(cd);
-        const fname = match ? (match[1] || match[2]) : '';
+        const match = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(
+          cd
+        );
+        const fname = match ? match[1] || match[2] : "";
         if (fname) suggested = decodeURIComponent(fname);
       }
       if (!suggested) {
         // Fallback: armar nombre con datos locales
         const ex = examenesRealizados.find((e) => e.id_examen_realizado === id);
         const nombre = ex ? getPacienteNombre(ex.id_paciente) : `examen_${id}`;
-        const tipo = ex ? getExamenNombre(ex.id_examen) : '';
+        const tipo = ex ? getExamenNombre(ex.id_examen) : "";
         const d = ex ? new Date(ex.created_at) : new Date();
-        const dd = String(d.getDate()).padStart(2,'0');
-        const mm = String(d.getMonth()+1).padStart(2,'0');
+        const dd = String(d.getDate()).padStart(2, "0");
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
         const yyyy = String(d.getFullYear());
         suggested = `${nombre} - ${tipo} - ${dd}-${mm}-${yyyy}.docx`;
       }
@@ -237,116 +238,112 @@ function Examenes() {
     }
   };
 
-  // Imprimir: convertir DOCX completo a HTML y abrir ventana de impresión
+  // Imprimir: abrir la ventana de impresión sincronamente (para evitar bloqueo) y rellenarla cuando llegue el PDF
   const printExamen = async (id) => {
-    try {
-      // Obtener el DOCX completo y procesado del servidor (mismo que exportar)
-      const res = await axios.get(
-        `http://localhost:5000/api/examenes_realizados/${id}/export`,
-        {
-          responseType: 'arraybuffer',
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-        }
-      );
-      
-      // Convertir DOCX completo a HTML usando mammoth con opciones para preservar formato
-      const result = await mammoth.convertToHtml(
-        { arrayBuffer: res.data },
-        {
-          includeDefaultStyleMap: true,
-          includeEmbeddedStyleMap: true,
-          convertImage: mammoth.images.imgElement(function(image) {
-            return image.read("base64").then(function(imageBuffer) {
-              return {
-                src: "data:" + image.contentType + ";base64," + imageBuffer
-              };
-            });
-          })
-        }
-      );
-      const htmlContent = result.value;
-      
-      // Crear ventana de impresión con el HTML del documento completo
-      const printWindow = window.open('', '_blank', 'width=900,height=800');
-      if (!printWindow) {
-        Swal.fire({
-          icon: 'warning',
-          title: 'Ventana bloqueada',
-          text: 'Por favor, permita ventanas emergentes para poder imprimir.',
-        });
-        return;
-      }
-      
-      printWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <meta charset="utf-8">
-            <title>Examen - Impresión</title>
-            <style>
-              * {
-                box-sizing: border-box;
-              }
-              @page {
-                size: letter;
-                margin: 0;
-              }
-              body {
-                font-family: Calibri, Arial, sans-serif;
-                margin: 0;
-                padding: 0;
-                background: white;
-              }
-              /* Preservar todos los estilos inline del documento */
-              table {
-                border-collapse: collapse;
-              }
-              @media print {
-                body {
-                  margin: 0;
-                  padding: 0;
-                }
-                @page {
-                  margin: 0;
-                }
-              }
-            </style>
-          </head>
-          <body>
-            ${htmlContent}
-            <script>
-              window.onload = function() {
-                setTimeout(function() {
-                  window.print();
-                }, 400);
-              };
-            </script>
-          </body>
-        </html>
-      `);
-      
-      printWindow.document.close();
-      
-    } catch (err) {
-      console.error('Error al imprimir examen:', err);
+    // Abrir la ventana de forma síncrona al hacer clic para que no sea bloqueada por el navegador
+    const printWindow = window.open("", "_blank", "width=900,height=800");
+    if (!printWindow) {
       Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: 'No se pudo preparar el documento para imprimir. Por favor, use la opción Exportar e imprima desde Word.',
+        icon: "warning",
+        title: "Ventana bloqueada",
+        text: "Por favor, permita ventanas emergentes para poder imprimir.",
+      });
+      return;
+    }
+
+    // Mostrar un mensaje provisional en la ventana mientras se descarga el PDF
+    try {
+      printWindow.document.write(
+        '<html><head><title>Preparando impresión...</title></head><body><p style="font-family: Arial, Helvetica, sans-serif;">Preparando documento para imprimir. Por favor espere...</p></body></html>'
+      );
+      printWindow.document.close();
+    } catch (e) {
+      // no crítico, continuar
+    }
+
+    try {
+      const res = await axios.get(
+        `http://localhost:5000/api/examenes_realizados/${id}/export?asPdf=1`,
+        {
+          responseType: "blob",
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        }
+      );
+
+      const blob = new Blob([res.data], { type: "application/pdf" });
+      const url = window.URL.createObjectURL(blob);
+
+      // Navegar la ventana ya abierta al blob URL (esto no se considera una nueva popup)
+      try {
+        printWindow.location.href = url;
+      } catch (e) {
+        // En algunos contextos la asignación puede fallar; intentar usar replace
+        try {
+          printWindow.location.replace(url);
+        } catch (_) {}
+      }
+
+      // Intentar disparar print automáticamente cuando el PDF cargue
+      printWindow.onload = function () {
+        try {
+          printWindow.focus();
+          printWindow.print();
+        } catch (e) {
+          // algunos navegadores no permiten print automático
+        }
+      };
+
+      // Liberar el objeto URL después de un tiempo prudente
+      setTimeout(() => window.URL.revokeObjectURL(url), 30000);
+    } catch (err) {
+      console.error("Error al pedir PDF para imprimir:", err);
+      // Cerrar la ventana provisional y mostrar error
+      try {
+        printWindow.close();
+      } catch (_) {}
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "No se pudo preparar el PDF para imprimir. Por favor, descargue el .docx y verifique que LibreOffice esté instalado en el servidor.",
       });
     }
   };
 
   return (
-    <div style={{ marginLeft: 250, padding: 20, backgroundColor: "#f8f9fa", minHeight: "100vh" }}>
-      <div className="container py-4" style={{ maxWidth: 1100, margin: "40px auto", background: "#fff", borderRadius: 16, boxShadow: "0 2px 8px #eee", minHeight: "70vh" }}>
+    <div
+      style={{
+        marginLeft: 250,
+        padding: 20,
+        backgroundColor: "#f8f9fa",
+        minHeight: "100vh",
+      }}
+    >
+      <div
+        className="container py-4"
+        style={{
+          maxWidth: 1100,
+          margin: "40px auto",
+          background: "#fff",
+          borderRadius: 16,
+          boxShadow: "0 2px 8px #eee",
+          minHeight: "70vh",
+        }}
+      >
         <div className="d-flex justify-content-between align-items-center mb-3">
-          <h2 className="mb-0" style={{ color: "#00C2CC" }}>Exámenes Realizados</h2>
+          <h2 className="mb-0" style={{ color: "#00C2CC" }}>
+            Exámenes Realizados
+          </h2>
           <div className="d-flex gap-2">
-            <button className="btn btn-info text-white" onClick={() => navigate("/realizar-examen")}>
+            <button
+              className="btn btn-info text-white"
+              onClick={() => navigate("/realizar-examen")}
+            >
               Registrar examen a paciente
             </button>
-            <button className="btn btn-outline-info" onClick={() => navigate("/crud-examenes")}>
+            <button
+              className="btn btn-outline-info"
+              onClick={() => navigate("/crud-examenes")}
+            >
               Catálogo de exámenes
             </button>
           </div>
@@ -367,18 +364,30 @@ function Examenes() {
               </div>
               <div className="d-flex flex-column" style={{ width: 240 }}>
                 <label className="form-label small mb-1">Tipo de examen</label>
-                <select className="form-select" value={filterTipoExamen} onChange={(e) => setFilterTipoExamen(e.target.value)}>
+                <select
+                  className="form-select"
+                  value={filterTipoExamen}
+                  onChange={(e) => setFilterTipoExamen(e.target.value)}
+                >
                   <option value="">— Todos —</option>
                   {examenes.map((x) => (
-                    <option key={x.id_examen} value={x.id_examen}>{x.titulo_examen}</option>
+                    <option key={x.id_examen} value={x.id_examen}>
+                      {x.titulo_examen}
+                    </option>
                   ))}
                 </select>
               </div>
               <div className="d-flex flex-column">
                 <label className="form-label small mb-1">Desde</label>
                 <DatePicker
-                  selected={filterStartDate ? parseYMDToLocalDate(filterStartDate) : null}
-                  onChange={(date) => setFilterStartDate(date ? getYMD(date) : '')}
+                  selected={
+                    filterStartDate
+                      ? parseYMDToLocalDate(filterStartDate)
+                      : null
+                  }
+                  onChange={(date) =>
+                    setFilterStartDate(date ? getYMD(date) : "")
+                  }
                   className="form-control form-control-sm border-info"
                   placeholderText="Seleccionar fecha"
                   dateFormat="dd-MM-yyyy"
@@ -388,8 +397,12 @@ function Examenes() {
               <div className="d-flex flex-column">
                 <label className="form-label small mb-1">Hasta</label>
                 <DatePicker
-                  selected={filterEndDate ? parseYMDToLocalDate(filterEndDate) : null}
-                  onChange={(date) => setFilterEndDate(date ? getYMD(date) : '')}
+                  selected={
+                    filterEndDate ? parseYMDToLocalDate(filterEndDate) : null
+                  }
+                  onChange={(date) =>
+                    setFilterEndDate(date ? getYMD(date) : "")
+                  }
                   className="form-control form-control-sm border-info"
                   placeholderText="Seleccionar fecha"
                   dateFormat="dd-MM-yyyy"
@@ -400,8 +413,8 @@ function Examenes() {
                 <button
                   className="btn btn-sm btn-info text-white"
                   onClick={() => {
-                    setSearchQuery('');
-                    setFilterTipoExamen('');
+                    setSearchQuery("");
+                    setFilterTipoExamen("");
                     setFilterStartDate(ymdMinus10);
                     setFilterEndDate(ymdToday);
                   }}
@@ -430,7 +443,9 @@ function Examenes() {
               <tbody>
                 {currentData.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="text-center">No hay exámenes realizados.</td>
+                    <td colSpan={5} className="text-center">
+                      No hay exámenes realizados.
+                    </td>
                   </tr>
                 ) : (
                   currentData.map((ex) => (
@@ -444,7 +459,9 @@ function Examenes() {
                           <button
                             className="btn btn-sm btn-info text-white"
                             onClick={() =>
-                              navigate('/realizar-examen', { state: { editId: ex.id_examen_realizado } })
+                              navigate("/realizar-examen", {
+                                state: { editId: ex.id_examen_realizado },
+                              })
                             }
                             title="Ver/Editar"
                           >
@@ -454,13 +471,13 @@ function Examenes() {
                           <button
                             className="btn btn-sm btn-outline-secondary"
                             onClick={() => exportExamen(ex.id_examen_realizado)}
-                            title="Exportar a .docx"
+                            title="Descargar .docx"
                           >
                             <i className="bi bi-file-earmark-arrow-down me-1"></i>
                             Exportar
                           </button>
                           <button
-                            className="btn btn-sm btn-outline-dark"
+                            className="btn btn-sm btn-outline-secondary"
                             onClick={() => printExamen(ex.id_examen_realizado)}
                             title="Imprimir"
                           >
@@ -488,16 +505,38 @@ function Examenes() {
         {/* Paginación */}
         <nav>
           <ul className="pagination pagination-sm justify-content-end m-3">
-            <li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
-              <button className="page-link" onClick={() => setCurrentPage(currentPage - 1)}>Anterior</button>
+            <li className={`page-item ${currentPage === 1 ? "disabled" : ""}`}>
+              <button
+                className="page-link"
+                onClick={() => setCurrentPage(currentPage - 1)}
+              >
+                Anterior
+              </button>
             </li>
             {Array.from({ length: totalPages }, (_, i) => (
-              <li key={i + 1} className={`page-item ${currentPage === i + 1 ? 'active' : ''}`}>
-                <button className="page-link" onClick={() => setCurrentPage(i + 1)}>{i + 1}</button>
+              <li
+                key={i + 1}
+                className={`page-item ${currentPage === i + 1 ? "active" : ""}`}
+              >
+                <button
+                  className="page-link"
+                  onClick={() => setCurrentPage(i + 1)}
+                >
+                  {i + 1}
+                </button>
               </li>
             ))}
-            <li className={`page-item ${currentPage === totalPages ? 'disabled' : ''}`}>
-              <button className="page-link" onClick={() => setCurrentPage(currentPage + 1)}>Siguiente</button>
+            <li
+              className={`page-item ${
+                currentPage === totalPages ? "disabled" : ""
+              }`}
+            >
+              <button
+                className="page-link"
+                onClick={() => setCurrentPage(currentPage + 1)}
+              >
+                Siguiente
+              </button>
             </li>
           </ul>
         </nav>
