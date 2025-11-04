@@ -186,7 +186,7 @@ exports.recuperarPassword = (req, res) => {
                 });
 
                 const mailOptions = {
-                    from: process.env.EMAIL_USER,
+                    from: "Laboratorio Clínico Ávila <laboratorio.clinico.avila.sv@gmail.com>",
                     to: usuario.correo,
                     subject: "Recuperación de Contraseña",
                     html: `
