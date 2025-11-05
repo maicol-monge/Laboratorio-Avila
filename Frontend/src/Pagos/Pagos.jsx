@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import Swal from 'sweetalert2';
-import logoUrl from '../assets/Lab Avila Logo.png';
+import logoUrl from '../assets/lab-avila-logo.png';
 
 const fmtDMY = (val) => {
   try {

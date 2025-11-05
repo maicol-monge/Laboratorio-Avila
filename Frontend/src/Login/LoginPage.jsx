@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from 'react-router-dom';
 import LoginForm from '../components/LoginForm';
+import logo from '../assets/lab-avila-logo.png';
 
 const LoginPage = () => {
     return (
@@ -17,7 +18,7 @@ const LoginPage = () => {
             {/* Panel izquierdo */}
             <div className="col-lg-6 d-none d-lg-flex flex-column justify-content-center align-items-center text-white" style={{ padding: "100px" }}>
                 <img
-                    src="src/assets/Lab Avila Logo.png"
+                    src={logo}
                     alt="Logo de Lab Avila"
                     className="mb-4"
                     style={{
