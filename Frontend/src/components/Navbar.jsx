@@ -1,5 +1,6 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
-
+import React from 'react';
+import logo from '../../src/assets/lab-avila-logo-blanco.png'; // <- ruta corregida
 export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -33,7 +34,7 @@ export default function Navbar() {
         className="d-flex align-items-center mb-4 me-md-auto text-decoration-none"
       >
         <img
-          src="src/assets/Lab Avila Logo.png"
+          src={logo}
           alt="Logo"
           className="img-fluid mb-3"
         />
