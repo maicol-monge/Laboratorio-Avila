@@ -417,11 +417,8 @@ export default function RealizarExamen() {
       if (!selectedPaciente) {
         return Swal.fire({ icon: "warning", title: "Seleccione un paciente", text: "Debe seleccionar un paciente antes de guardar.", confirmButtonColor: "#17a2b8" });
       }
-      const missing = getMissingRequiredFields(selectedPlantilla, form || {});
-      if (missing.length > 0) {
-        const msg = missing.map(k => LABELS[k] || k).join(", ");
-        return Swal.fire({ icon: "warning", title: "Campos obligatorios", html: `Complete: <b>${msg}</b>`, confirmButtonColor: "#17a2b8" });
-      }
+      // Nota: se elimina la validación que impedía guardar por campos vacíos 
+      // (permitir agregar al listado aun cuando falten campos en el formulario).
       const tipo_muestra = form.tipo_muestra || "";
       const { tipo_muestra: _, ...diagnosticoData } = form;
 
@@ -719,7 +716,7 @@ export default function RealizarExamen() {
                     className="btn btn-success"
                     type="button"
                     onClick={handleGuardar}
-                    disabled={!selectedPaciente || getMissingRequiredFields(selectedPlantilla, form || {}).length > 0}
+                    disabled={!selectedPaciente}
                   >
                     Guardar en listado
                   </button>
