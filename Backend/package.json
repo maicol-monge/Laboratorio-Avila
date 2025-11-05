@@ -9,6 +9,8 @@
     "nodemailer": "^7.0.6",
     "easy-template-x": "^2.0.2",
     "jszip": "^3.10.1",
-    "pdfkit": "^0.15.0"
+    "pdfkit": "^0.15.0",
+    "mammoth": "^1.4.19",
+    "libreoffice-convert": "^1.4.0"
   }
 }
