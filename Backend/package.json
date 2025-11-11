@@ -31,6 +31,6 @@
       "../Frontend/dist/**/*",
       "node_modules/es-get-iterator/**"
     ],
-     "icon": "../Frontend/src/assets/favicon.ico"
+     "icon": "icono.ico"
   }
 }
