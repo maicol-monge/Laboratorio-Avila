@@ -46,6 +46,24 @@ function Examenes() {
       .catch(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+    // traer tipos de examen y pacientes en paralelo
+    Promise.all([
+      axios.get("http://localhost:5000/api/examenes", { headers }),
+      axios.get("http://localhost:5000/api/pacientes", { headers }),
+    ])
+      .then(([resExamenes, resPacientes]) => {
+        setExamenes(Array.isArray(resExamenes.data) ? resExamenes.data : []);
+        setPacientes(Array.isArray(resPacientes.data) ? resPacientes.data : []);
+      })
+      .catch((err) => {
+        console.error("Error cargando examenes/pacientes:", err);
+      });
+  }, []);
+
   // Helpers
   const parseYMDToLocalDate = (ymd) => {
     if (!ymd) return null;
