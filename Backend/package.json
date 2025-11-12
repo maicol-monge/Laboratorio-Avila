@@ -1,0 +1,36 @@
+{
+   "name": "backend",
+
+  "version": "1.0.0",
+
+  "main": "start.js",
+
+  "bin": "start.js",
+
+  "scripts": {
+
+    "start": "node start.js"
+
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.2",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mysql2": "^3.15.0",
+    "nodemailer": "^7.0.6",
+    "easy-template-x": "^2.0.2",
+    "jszip": "^3.10.1",
+    "pdfkit": "^0.15.0",
+    "mammoth": "^1.4.19",
+    "libreoffice-convert": "^1.4.0"
+  },
+  "pkg": {
+    "assets": [
+      "../Frontend/dist/**/*",
+      "node_modules/es-get-iterator/**"
+    ],
+     "icon": "icono.ico"
+  }
+}
