@@ -62,6 +62,7 @@ function Examenes() {
       .catch((err) => {
         console.error("Error cargando examenes/pacientes:", err);
       });
+      //
   }, []);
 
   // Helpers
